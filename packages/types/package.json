@@ -1,0 +1,39 @@
+{
+  "name": "@wrk/types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WRK shared types: canonical JSON, content hashing, identifiers, basis-point money math, state machines, payload schemas, EIP-712 settlement typed data.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "typecheck:test": "tsc -p tsconfig.test.json",
+    "verify:vectors": "node verify/vectors.mjs",
+    "verify:rejects": "node verify/rejects.mjs",
+    "verify:bp": "node verify/bp.mjs",
+    "verify:ids": "node verify/ids.mjs",
+    "verify:states": "node verify/states.mjs",
+    "verify:eip712": "node verify/eip712.mjs",
+    "verify:all": "pnpm verify:vectors && pnpm verify:rejects && pnpm verify:bp && pnpm verify:ids && pnpm verify:states && pnpm verify:eip712",
+    "test": "pnpm typecheck:test && vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
+  },
+  "dependencies": {
+    "viem": "2.56.9",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

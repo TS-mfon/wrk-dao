@@ -1,0 +1,8 @@
+{
+  "_comment": "Digests of the frozen canonical fixtures. Changing these is a protocol change requiring a canonical-JSON version bump (docs/CANONICAL.md §3), never a way to make a failing gate pass.",
+  "canonical_json_version": "wrk/canonical-json/v1",
+  "digests": {
+    "fixtures/canonical-vectors.json": "sha256:4872d94bc0e8c2b69d7da9fb6c0e54de476191bf32e4ec7b42755013fbb15c81",
+    "fixtures/canonical-inputs.json": "sha256:45b7d7266245f88f512d2ed60c08281773cb36cfe683be7ae59e3043bc271706"
+  }
+}

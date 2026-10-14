@@ -1,0 +1,163 @@
+{
+  "_comment": [
+    "Shared INPUT vectors for the canonical-JSON parity proof. Transport only:",
+    "scripts/verify-hash-parity.mjs parses this file in JavaScript, scripts/canonical-cli.py",
+    "parses it in Python, and both must serialise every vector to identical bytes.",
+    "",
+    "Numbers here MUST be written as plain integer literals. A form like 1e2 or 1.0 would",
+    "parse to the integer 100 in JavaScript and the float 100.0 in Python, so the two",
+    "languages would disagree about whether the vector is even legal. The loader rejects",
+    "those spellings so the hazard cannot be reintroduced silently.",
+    "",
+    "Strings use \\u escapes rather than literal bytes so this file stays pure ASCII and",
+    "cannot be mangled by an editor normalising Unicode."
+  ],
+  "accept": [
+    { "name": "empty_object", "value": {} },
+    { "name": "empty_array", "value": [] },
+    { "name": "null_scalar", "value": null },
+    { "name": "true_scalar", "value": true },
+    { "name": "false_scalar", "value": false },
+    { "name": "zero", "value": 0 },
+    { "name": "negative_int", "value": -12345 },
+    { "name": "max_safe_int", "value": 9007199254740991 },
+    { "name": "min_safe_int", "value": -9007199254740991 },
+    { "name": "empty_string", "value": "" },
+
+    {
+      "name": "key_order_ascii_classes",
+      "value": { "z": 1, "A": 2, "_": 3, "a": 4, "Z": 5, "0": 6, "9": 7, "_z": 8, "Az": 9 }
+    },
+    {
+      "name": "key_order_prefix_vs_longer",
+      "value": { "ab": 1, "a": 2, "abc": 3, "a_": 4, "aB": 5 }
+    },
+    {
+      "name": "nested_unsorted",
+      "value": {
+        "outer_b": { "inner_z": 1, "inner_a": { "deep_y": true, "deep_b": null } },
+        "outer_a": [{ "q": 1, "p": 2 }, { "b": 3, "a": 4 }]
+      }
+    },
+    {
+      "name": "deep_nesting",
+      "value": { "a": { "a": { "a": { "a": { "a": { "a": { "a": [1, [2, [3, [4]]]] } } } } } } }
+    },
+
+    { "name": "string_quote", "value": "he said \"yes\"" },
+    { "name": "string_backslash", "value": "C:\\\\path\\\\to\\\\thing" },
+    { "name": "string_backslash_u_literal", "value": "not an escape: \\\\u0041" },
+    { "name": "string_solidus", "value": "a/b/c" },
+    { "name": "string_shorthand_escapes", "value": "\b\t\n\f\r" },
+    {
+      "name": "string_all_c0_controls",
+      "value": "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f"
+    },
+    { "name": "string_space_and_tilde", "value": " !~" },
+    { "name": "string_del_raw", "value": "before\u007fafter" },
+    { "name": "string_c1_controls", "value": "\u0080\u009f" },
+    { "name": "string_nbsp", "value": "a\u00a0b" },
+    { "name": "string_latin1", "value": "caf\u00e9 na\u00efve \u00dfra\u00dfe" },
+    { "name": "string_replacement_char", "value": "\ufffd" },
+    { "name": "string_bmp_max", "value": "\uffff" },
+    { "name": "string_cjk", "value": "\u4f60\u597d\u4e16\u754c" },
+    { "name": "string_rtl", "value": "\u05e9\u05dc\u05d5\u05dd \u0645\u0631\u062d\u0628\u0627" },
+    { "name": "string_astral_emoji", "value": "\ud83d\ude00" },
+    { "name": "string_astral_max", "value": "\udbff\udfff" },
+    { "name": "string_zwj_sequence", "value": "\ud83d\udc69\u200d\ud83d\udcbb" },
+    { "name": "string_combining_marks", "value": "e\u0301 vs \u00e9" },
+    { "name": "string_lone_high_surrogate", "value": "x\ud83dy" },
+    { "name": "string_lone_low_surrogate", "value": "x\ude00y" },
+    { "name": "string_bom", "value": "\ufeffleading bom" },
+    { "name": "string_line_separators", "value": "\u2028\u2029" },
+
+    {
+      "name": "array_mixed",
+      "value": [0, -1, true, false, null, "", "x", [], {}, [[]], [{}]]
+    },
+    {
+      "name": "array_order_is_preserved",
+      "value": ["z", "a", "m", "b"]
+    },
+
+    {
+      "name": "wrk_mission_payload",
+      "value": {
+        "schema_version": 1,
+        "mission_id": "msn_01JQ8Z3X9K2M4N6P8R0T2V4W6Y",
+        "dao_id": "dao_01JQ8Z1A2B3C4D5E6F7G8H9J0K",
+        "creator_agent_id": "agt_01JQ8Z0Q1R2S3T4V5W6X7Y8Z9A",
+        "title": "Ship a GenLayer settlement adapter",
+        "outcome_statement": "A deployed adapter that releases USDC only after finality.",
+        "acceptance_criteria": [
+          { "id": "ac_1", "statement": "Adapter refuses a non-finalized decision.", "weight_bp": 4000 },
+          { "id": "ac_2", "statement": "Adapter is idempotent per decision_id.", "weight_bp": 3500 },
+          { "id": "ac_3", "statement": "Partial acceptance splits to the basis point.", "weight_bp": 2500 }
+        ],
+        "budget": { "asset": "USDC", "chain_id": 84532, "amount_atomic": "250000000", "decimals": 6 },
+        "deadline_unix": 1790000000,
+        "evidence_requirements": ["source_repository", "test_output", "deployed_address"],
+        "allow_teams": true,
+        "max_team_size": 3
+      }
+    },
+    {
+      "name": "wrk_decision_payload",
+      "value": {
+        "schema_version": 1,
+        "decision_id": "dec_01JQ8ZB1C2D3E4F5G6H7J8K9M0",
+        "mandate_id": "mnd_01JQ8ZA0B1C2D3E4F5G6H7J8K9",
+        "verdict": "PARTIAL_ACCEPTANCE",
+        "criteria_findings": [
+          { "criterion_id": "ac_1", "met": true, "confidence_bp": 9500, "rationale": "Reverts on pending." },
+          { "criterion_id": "ac_2", "met": true, "confidence_bp": 9000, "rationale": "Nonce map blocks replay." },
+          { "criterion_id": "ac_3", "met": false, "confidence_bp": 7000, "rationale": "Rounds against payee." }
+        ],
+        "release_bp": 7500,
+        "refund_bp": 2500,
+        "allocations": [
+          { "agent_id": "agt_01JQ8ZC1D2E3F4G5H6J7K8M9N0", "share_bp": 6000 },
+          { "agent_id": "agt_01JQ8ZD1E2F3G4H5J6K7M8N9P0", "share_bp": 4000 }
+        ],
+        "adjudicated_at_unix": 1790001234,
+        "notes": "Rounding fixed in follow-up; \"as-is\" at deadline."
+      }
+    }
+  ],
+  "reject": [
+    { "name": "float_value", "value": 1.5, "reason": "non-integer number" },
+    { "name": "unsafe_int_above", "value": 9007199254740992, "reason": "exceeds safe integer range" },
+    { "name": "unsafe_int_below", "value": -9007199254740992, "reason": "below safe integer range" },
+    { "name": "key_with_dash", "value": { "a-b": 1 }, "reason": "key outside ^[A-Za-z0-9_]+$" },
+    { "name": "key_with_dot", "value": { "a.b": 1 }, "reason": "key outside ^[A-Za-z0-9_]+$" },
+    { "name": "key_with_space", "value": { "a b": 1 }, "reason": "key outside ^[A-Za-z0-9_]+$" },
+    { "name": "key_empty", "value": { "": 1 }, "reason": "key outside ^[A-Za-z0-9_]+$" },
+    { "name": "key_non_ascii", "value": { "caf\u00e9": 1 }, "reason": "non-ASCII key would sort differently per language" },
+    { "name": "key_astral", "value": { "\ud83d\ude00": 1 }, "reason": "astral key sorts differently in JS and Python" },
+    { "name": "nested_bad_key", "value": { "ok": { "not_ok!": 1 } }, "reason": "key outside ^[A-Za-z0-9_]+$" },
+    { "name": "bad_key_inside_array", "value": [{ "no-good": 1 }], "reason": "key outside ^[A-Za-z0-9_]+$" },
+    { "name": "float_inside_array", "value": [1, 2.5], "reason": "non-integer number" },
+    { "name": "float_deeply_nested", "value": { "a": { "b": [{ "c": 0.1 }] } }, "reason": "non-integer number" }
+  ],
+  "_reject_python_only_comment": [
+    "A deliberate, tested asymmetry. JavaScript has one number type, so it cannot see the",
+    "difference between 2 and 2.0 -- by the time JSON.parse is done, the float spelling is",
+    "gone and the value is a safe integer. Python keeps the distinction and refuses the float.",
+    "",
+    "This asymmetry is safe in the only direction that matters. A producer that emits 2.0",
+    "makes Python refuse the payload outright, so the mission or decision is never created.",
+    "It can never make Python emit 2.0 where JavaScript emits 2, which is the silent hash",
+    "fork this whole file exists to rule out. Fail-closed on one side beats agreement on a",
+    "wrong byte, so the rule stands and is pinned here rather than quietly deleted.",
+    "",
+    "js_canonical records exactly what JavaScript produces, so a future change to the",
+    "JavaScript encoder cannot widen the asymmetry without this test noticing."
+  ],
+  "reject_python_only": [
+    { "name": "float_integral_value", "value": 2.0, "js_canonical": "2" },
+    { "name": "negative_float_zero", "value": -0.0, "js_canonical": "0" },
+    { "name": "exponent_integral", "value": 1e2, "js_canonical": "100" },
+    { "name": "nested_float_integral", "value": { "a": 2.0 }, "js_canonical": "{\"a\":2}" },
+    { "name": "float_integral_in_array", "value": [1, 2.0, 3], "js_canonical": "[1,2,3]" }
+  ]
+}

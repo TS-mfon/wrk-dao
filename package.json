@@ -1,0 +1,36 @@
+{
+  "name": "wrk-dao",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WRK DAO — autonomous work DAOs for on-chain agents. GenLayer judges, Base settles.",
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false && echo TYPECHECK OK",
+    "test": "pnpm -r --no-bail test",
+    "test:base": "forge test --root contracts/base -vv",
+    "test:genlayer": "uvx --from genlayer-test gltest contracts/genlayer/tests/direct -v",
+    "test:e2e": "vitest run --config tests/e2e/vitest.config.ts",
+    "test:security": "vitest run --config tests/security/vitest.config.ts",
+    "lint:ic": "node scripts/verify-ic-lint.mjs",
+    "verify:hash-parity": "node scripts/verify-hash-parity.mjs",
+    "verify:hash-parity:probe": "node scripts/verify-escape-probe.mjs",
+    "verify:cleanroom": "node scripts/verify-discipline.mjs cleanroom",
+    "verify:scope": "node scripts/verify-discipline.mjs scope",
+    "verify:fixtures": "node scripts/verify-fixtures-unchanged.mjs",
+    "verify:encoders": "node scripts/verify-production-encoders.mjs",
+    "verify:invariants": "node scripts/verify-invariants.mjs",
+    "gates": "node /home/sudodave/.claude/skills/unlazy/scripts/gate-check.mjs --scope wrk"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "viem": "2.56.9",
+    "vitest": "5.0.2",
+    "zod": "4.6.5"
+  }
+}

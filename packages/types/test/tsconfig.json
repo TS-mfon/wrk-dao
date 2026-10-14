@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// note": "Exists so vitest's transform resolves a tsconfig here and does not walk up to the repo-root solution file, whose `references` point at workspace projects that other leaves have not landed yet. Without this, every test file fails to transform with \"Failed to load tsconfig '../indexer'\". `pnpm typecheck:test` uses ../tsconfig.test.json; this file only feeds the transform.",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "../src/**/*.ts"]
+}

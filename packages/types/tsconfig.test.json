@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// note": "Typechecks the test suite and the vitest config against the same strict options as src, without emitting. Deliberately compiles src directly rather than referencing the built project, so `pnpm typecheck:test` is meaningful before any build has run.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

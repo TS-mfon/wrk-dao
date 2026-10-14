@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// note": "Solution file. Holds no sources of its own; `tsc -b` walks the references. Every project listed here must exist and typecheck for root gate G4 to pass, so this file is also the workspace's completion checklist.",
+  "files": [],
+  "references": [
+    { "path": "packages/types" },
+    { "path": "packages/indexer" },
+    { "path": "packages/settlement" },
+    { "path": "packages/sdk" },
+    { "path": "packages/mcp" },
+    { "path": "apps/api" },
+    { "path": "apps/web" }
+  ]
+}

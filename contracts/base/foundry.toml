@@ -1,0 +1,123 @@
+# WRK DAO — Base settlement layer.
+# Driver-owned scaffolding: no leaf writes this file (see .unlazy/wrk/PLAN.md).
+
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 20000
+via_ir = false
+
+# Every warning is an error. This layer holds the protocol's USDC; a warning here
+# is a finding, not a style note.
+#
+# This is why the escrow uses OpenZeppelin's storage-based ReentrancyGuard rather
+# than ReentrancyGuardTransient: the transient variant pulls in TransientSlot,
+# whose EIP-1153 composability advisory is emitted as a warning by solc and would
+# therefore fail this build. The options were to relax warnings-as-errors for the
+# whole settlement layer or to spend a few thousand gas once per mandate. Strict
+# warnings are worth more than the gas on a path that runs once per settlement.
+deny = "warnings"
+
+# Uninitialised storage and shadowed declarations are silent-corruption classes
+# in escrow code, so they are never downgraded.
+# (Left explicit rather than inherited so a future profile cannot relax it.)
+ignored_error_codes = []
+
+bytecode_hash = "none"
+cbor_metadata = false
+
+# The deploy script writes a deployment record, and that is the only filesystem write
+# this project's Solidity performs. Scoped to one directory with explicit write access
+# rather than a blanket permission: a script that can write anywhere can also overwrite
+# a test fixture or a lockfile, and the frozen canonical vectors are exactly the kind of
+# file that must never be writable from inside a test run.
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+[profile.default.fuzz]
+# Settlement arithmetic is basis-point integer division with a remainder rule
+# (docs/ARCHITECTURE.md §7). That is exactly the shape fuzzing finds bugs in, so
+# the run count is well above Foundry's default of 256.
+runs = 4096
+max_test_rejects = 200000
+
+[profile.default.invariant]
+# Invariants I1-I12 are stateful claims about a sequence of calls, not about one
+# call, so they need depth rather than only breadth.
+runs = 512
+depth = 64
+fail_on_revert = false
+call_override = false
+
+# The gated heavier profile. Sized to the measured budget rather than picked by feel:
+# the unlazy checker allows a check 120 seconds, and `node-1.3:N1` reverifies children
+# with a fixed command that cannot pass a longer timeout, so a gate needing a non-default
+# flag would break its own parent.
+#
+# Measured on this machine, three settings:
+#   default   fuzz 4096,  invariant 512x64   ~50s   (the inner loop)
+#   rejected  fuzz 20000, invariant 2048x128  491s  (timed the gate out)
+#   rejected  fuzz 20000, invariant 256x256   298s  (still over budget)
+#   chosen    fuzz 8000,  invariant 512x80    ~90s  (fits with margin)
+#
+# Depth is disproportionately expensive here, and the reason is this project's own
+# invariants rather than Foundry: invariant_perMandateAccountingIdentity loops over every
+# mandate, so a deeper sequence creates more mandates AND makes each check longer --
+# O(depth) per call, O(depth^2) per run. Worth knowing before anyone raises depth again.
+#
+# This profile is therefore only modestly heavier than the inner loop. The genuinely heavy
+# run is the `soak` profile below, which is not a gate.
+[profile.ci.fuzz]
+runs = 8000
+
+[profile.ci.invariant]
+runs = 512
+depth = 80
+
+# The ungated soak, for deliberate pre-release runs. Not a gate: it takes minutes, and a
+# gate slow enough to be skipped is worse than one that is honestly out of scope. Run it
+# by hand and record the result:
+#     FOUNDRY_PROFILE=soak forge test --root contracts/base
+[profile.soak.fuzz]
+runs = 100000
+
+[profile.soak.invariant]
+runs = 2048
+depth = 128
+
+[lint]
+# `block-timestamp` is suppressed project-wide, which is the only mechanism forge 1.7.1
+# offers for it: the id is emitted by the build but is absent from forge lint's registry,
+# so `// forge-lint: disable-next-line(block-timestamp)` is itself rejected as an unknown
+# id -- and with deny = "warnings" that failed the build. Five such comments were written
+# and removed once this was understood.
+#
+# The suppression is defensible on the merits, not just on convenience. Every
+# timestamp comparison in this project is bounded by seconds against a 3600-second
+# challenge window or a 7-day refund floor: WRKEscrow.execute, WRKEscrow.refundExpired,
+# and three handler guards in EscrowInvariants.t.sol. A proposer who moves the clock a few
+# seconds changes nothing an attacker can use. Every one of those sites carries a comment
+# explaining its own reasoning, which is what a reader actually needs.
+#
+# What this costs: a future careless `block.timestamp` comparison will not be flagged.
+# That is a real loss and the reason it is recorded here rather than buried.
+exclude_lints = ["block-timestamp"]
+
+[fmt]
+line_length = 110
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+number_underscore = "thousands"
+
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+
+[etherscan]
+base_sepolia = {key = "${BASESCAN_API_KEY}", chain = 84532}

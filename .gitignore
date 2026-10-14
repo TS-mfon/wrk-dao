@@ -1,0 +1,60 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# foundry
+contracts/base/out/
+contracts/base/cache/
+contracts/base/broadcast/
+
+# Foundry/fuzz runners also create a repository-root cache with minimized
+# failure corpora. These are local test artefacts, not source or fixtures.
+/cache/
+
+# genlayer
+artifacts/
+.genvm/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# deployment output
+deployments/*.json
+!deployments/.gitkeep
+
+# unlazy build-process state. Kept untracked on the skill's own guidance: approvals and
+# gate evidence embed machine-specific absolute paths and a full inherited PATH, so a
+# shared install is not portable. The durable record a clone needs lives in the
+# repository proper -- BUGS.md and docs/.
+.unlazy/
+.unlazy-hook-state.json
+.claude/settings.local.json
+
+# misc
+.DS_Store
+*.log
+
+# Foundry dependencies (installed by forge install, not vendored)
+contracts/base/lib/
+
+# defensive: any .env variant, including .env.build if ever copied here
+.env*
+!.env.example
+
+# Foundry writes a deployer PRIVATE KEY into cache/ on every --broadcast run
+# ("Sensitive values saved to: ..."), and raw signed transactions into broadcast/.
+# deploy/verify-no-broadcast-secrets.mjs enforces that both stay invisible to git.
+contracts/base/cache/
+contracts/base/broadcast/
+contracts/base/deployments/
