@@ -39,17 +39,21 @@ function git(args, { allowFail = false } = {}) {
   }
 }
 
-/** GitHub's API is reachable but flaky here; retry before calling it a failure. */
-function gh(args, attempts = 3) {
+/** One network call, retried briefly. Anything that can be answered locally is. */
+function gitRetry(args, attempts = 3, perAttemptMs = 25_000) {
   let last = "";
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", timeout: 180_000 }).trim();
+      return execFileSync("git", args, {
+        cwd: ROOT,
+        encoding: "utf8",
+        timeout: perAttemptMs,
+      }).trim();
     } catch (error) {
       last = (error.stderr || error.message || "").trim();
     }
   }
-  problems.push(`gh ${args.join(" ")} failed after ${attempts} attempt(s): ${last}`);
+  problems.push(`git ${args.join(" ")} failed after ${attempts} attempt(s): ${last}`);
   return null;
 }
 
@@ -91,10 +95,8 @@ const localHead = git(["rev-parse", "HEAD"]);
 
 let remoteHead = null;
 if (branch && branch !== "HEAD") {
-  for (let attempt = 1; attempt <= 3 && !remoteHead; attempt += 1) {
-    const line = git(["ls-remote", "origin", `refs/heads/${branch}`], { allowFail: true });
-    if (line) remoteHead = line.split(/\s+/)[0];
-  }
+  const line = gitRetry(["ls-remote", "origin", `refs/heads/${branch}`]);
+  if (line) remoteHead = line.split(/\s+/)[0];
   if (!remoteHead) {
     problems.push(`origin has no branch ${branch}, so nothing was pushed to it`);
   } else if (remoteHead !== localHead) {
@@ -122,23 +124,25 @@ if (dirty) {
 
 // ── 4. the remote really holds the files ────────────────────────────────────
 
+// Counted from `origin/<branch>`, the local record of what the remote accepted, rather
+// than from the GitHub API. The remote-tracking ref is only advanced by a successful
+// fetch or push, and check 2 has already proved it names the same commit the remote
+// serves — so this counts the real remote tree without a second network round trip over
+// a link that times out at 135s.
 let remoteFiles = null;
-if (slug && branch && branch !== "HEAD") {
-  const counted = gh([
-    "api",
-    `repos/${slug}/git/trees/${branch}?recursive=1`,
-    "--jq",
-    '.tree | map(select(.type=="blob")) | length',
-  ]);
-  if (counted !== null) {
-    remoteFiles = Number(counted);
+if (branch && branch !== "HEAD" && remoteHead) {
+  const tracked = git(["ls-tree", "-r", "--name-only", remoteHead], { allowFail: true });
+  if (tracked === null) {
+    problems.push(
+      `commit ${remoteHead} is on the remote but not in the local object store, so its contents cannot be counted`,
+    );
+  } else {
+    remoteFiles = tracked.split("\n").filter(Boolean).length;
     const localFiles = (git(["ls-files"], { allowFail: true }) || "").split("\n").filter(Boolean).length;
-    if (!Number.isFinite(remoteFiles) || remoteFiles === 0) {
-      problems.push(`the remote tree is empty — the repository exists but holds no files`);
+    if (remoteFiles === 0) {
+      problems.push("the pushed commit holds no files");
     } else if (remoteFiles !== localFiles) {
-      problems.push(
-        `the remote holds ${remoteFiles} file(s) but ${localFiles} are tracked locally`,
-      );
+      problems.push(`the pushed commit holds ${remoteFiles} file(s) but ${localFiles} are tracked locally`);
     }
   }
 }
