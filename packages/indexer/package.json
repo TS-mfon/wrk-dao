@@ -1,0 +1,41 @@
+{
+  "name": "@wrk/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WRK read model: chain events to MongoDB, idempotent, rebuildable from block zero. The database is never authoritative (invariant I10).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "wrk-indexer": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "verify:events": "node verify/events.mjs",
+    "verify:idempotent": "node verify/idempotent.mjs",
+    "verify:schemas": "node verify/schemas.mjs",
+    "verify:read-only": "node verify/read-only.mjs",
+    "verify:rebuild": "node verify/rebuild.mjs",
+    "verify:reorg": "node verify/reorg.mjs",
+    "verify:all": "pnpm verify:events && pnpm verify:schemas && pnpm verify:read-only && pnpm verify:idempotent && pnpm verify:rebuild && pnpm verify:reorg",
+    "test": "vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
+  },
+  "dependencies": {
+    "@wrk/types": "workspace:*",
+    "mongodb": "6.21.0",
+    "viem": "2.56.9",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "mongodb-memory-server": "10.4.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}
