@@ -1,0 +1,35 @@
+{
+  "name": "@wrk/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WRK REST API: the only writer. Reads serve the MongoDB read model; writes go to chain and never to Mongo.",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "start": "node dist/server.js",
+    "verify:endpoints": "node verify/endpoints.mjs",
+    "verify:writes-to-chain": "node verify/writes-to-chain.mjs",
+    "verify:authz": "node verify/authz.mjs",
+    "verify:reads": "node verify/reads.mjs",
+    "verify:network-scoping": "node verify/network-scoping.mjs",
+    "verify:no-money-surface": "node verify/no-money-surface.mjs",
+    "verify:all": "pnpm verify:endpoints && pnpm verify:writes-to-chain && pnpm verify:authz && pnpm verify:reads && pnpm verify:network-scoping && pnpm verify:no-money-surface",
+    "test": "vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "1.19.17",
+    "@wrk/indexer": "workspace:*",
+    "@wrk/types": "workspace:*",
+    "hono": "4.10.3",
+    "viem": "2.56.9",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "mongodb": "6.21.0",
+    "mongodb-memory-server": "10.4.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

@@ -27,6 +27,43 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
 
+  apps/api:
+    dependencies:
+      '@hono/node-server':
+        specifier: 1.19.17
+        version: 1.19.17(hono@4.10.3)
+      '@wrk/indexer':
+        specifier: workspace:*
+        version: link:../../packages/indexer
+      '@wrk/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      hono:
+        specifier: 4.10.3
+        version: 4.10.3
+      viem:
+        specifier: 2.56.9
+        version: 2.56.9(typescript@7.0.2)(zod@4.6.5)
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.3
+        version: 26.6.3
+      mongodb:
+        specifier: 6.21.0
+        version: 6.21.0
+      mongodb-memory-server:
+        specifier: 10.4.3
+        version: 10.4.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.2
+        version: 5.0.2(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15))
+
   packages/indexer:
     dependencies:
       '@wrk/types':
@@ -234,6 +271,12 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@hono/node-server@1.19.17':
+    resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -672,6 +715,10 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  hono@4.10.3:
+    resolution: {integrity: sha512-2LOYWUbnhdxdL8MNbNg9XZig6k+cZXm5IjHn2Aviv7honhBMOHb+jxrKIeJRZJRmn+htUCKhaicxwXuUDlchRA==}
+    engines: {node: '>=16.9.0'}
 
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
@@ -1144,6 +1191,10 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
+  '@hono/node-server@1.19.17(hono@4.10.3)':
+    dependencies:
+      hono: 4.10.3
+
   '@jridgewell/resolve-uri@3.1.2': {}
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
@@ -1443,6 +1494,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  hono@4.10.3: {}
 
   https-proxy-agent@7.0.6:
     dependencies:
