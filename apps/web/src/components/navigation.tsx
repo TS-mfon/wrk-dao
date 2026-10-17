@@ -12,6 +12,7 @@ export const NAVIGATION = [
   { href: "/docs", label: "Protocol" },
   { href: "/monitoring", label: "Monitor" },
   { href: "/inspect", label: "Inspect" },
+  { href: "/inspect/lookup", label: "Lookup" },
 ] as const;
 
 export function Navigation() {

@@ -24,6 +24,12 @@ export interface Health {
   freshness: Freshness;
   agents: number;
   daos: number;
+  missions?: number;
+  requests?: number;
+  mandates?: number;
+  proposals?: number;
+  adjudications?: number;
+  settlements_executed?: number;
   missions_open: number;
   mandates_in_flight: number;
   mandates_awaiting_settlement: number;

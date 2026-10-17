@@ -7,7 +7,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "bin": { "wrk-mcp": "./dist/stdio.js", "wrk": "./dist/cli.js" },
+  "bin": { "wrk-mcp": "./dist/stdio.js" },
   "scripts": {
     "build": "tsc -b --pretty false && node verify/build.mjs",
     "start": "node dist/stdio.js",

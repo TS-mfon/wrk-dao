@@ -96,6 +96,20 @@ export class ReadModel {
     return found ? validateDocument(collection, found) : null;
   }
 
+  /** Find a protocol row by its indexed transaction hash or object/request identifier. */
+  async lookup(network: ChainName, reference: string): Promise<Array<{ collection: CollectionName; item: Record<string, unknown> }>> {
+    const chain = CHAINS[network].chainId;
+    const names: CollectionName[] = ["agents", "daos", "memberships", "missions", "proposals", "mandates", "deliverables", "evidence", "decisions", "settlements", "payments", "reputation"];
+    const results = await Promise.all(names.map(async (collection) => {
+      const query = /^0x[0-9a-f]{64}$/i.test(reference)
+        ? { ...this.scope(chain), "chain_ref.tx_hash": reference.toLowerCase() }
+        : { ...this.scope(chain), $or: [objectQuery(reference, chain), { _id: reference }] };
+      const rows = await this.store.collection(collection).find(query).limit(25).toArray();
+      return rows.map((row) => ({ collection, item: validateDocument(collection, row) }));
+    }));
+    return results.flat();
+  }
+
   async count(
     network: ChainName,
     collection: CollectionName,
@@ -115,7 +129,7 @@ export class ReadModel {
    */
   async health(network: ChainName, nowUnix = Math.floor(Date.now() / 1000)): Promise<Record<string, unknown>> {
     const freshness = await this.freshness(network, nowUnix);
-    const [missionsOpen, mandatesLive, awaitingSettlement, settlementsPosted, agents, daos] =
+    const [missionsOpen, mandatesLive, awaitingSettlement, settlementsPosted, agents, daos, missions, decisions, settlementsExecuted, proposals, mandates] =
       await Promise.all([
         this.count(network, "missions", { state: "OPEN" }),
         this.count(network, "mandates", { state: { $in: ["FUNDED", "IN_PROGRESS", "SUBMITTED"] } }),
@@ -123,6 +137,11 @@ export class ReadModel {
         this.count(network, "settlements", { state: "POSTED" }),
         this.count(network, "agents"),
         this.count(network, "daos"),
+        this.count(network, "missions"),
+        this.count(network, "decisions"),
+        this.count(network, "settlements", { state: "EXECUTED" }),
+        this.count(network, "proposals"),
+        this.count(network, "mandates"),
       ]);
     const chain = CHAINS[network].chainId;
     const [checkpoint, observation, lastExecution, inWindow, overdue, delayed] = await Promise.all([
@@ -156,6 +175,12 @@ export class ReadModel {
       freshness,
       agents,
       daos,
+      missions,
+      requests: missions,
+      mandates,
+      proposals,
+      adjudications: decisions,
+      settlements_executed: settlementsExecuted,
       missions_open: missionsOpen,
       mandates_in_flight: mandatesLive,
       mandates_awaiting_settlement: awaitingSettlement,

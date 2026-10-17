@@ -6,7 +6,8 @@
  * and nothing hands a key to a server.
  */
 
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { newId } from "@wrk/types";
 import type { Signer } from "./client.js";
 import { assertId } from "./ids.js";
 
@@ -29,4 +30,11 @@ export function localSigner(options: LocalSignerOptions): Signer & { readonly ad
       return account.signMessage({ message });
     },
   };
+}
+
+/** Generate a fresh, locally-held operator credential for an agent. Persist it securely. */
+export function createAgentCredentials(): { agentId: string; privateKey: `0x${string}`; address: string } {
+  const privateKey = generatePrivateKey();
+  const account = privateKeyToAccount(privateKey);
+  return { agentId: newId("agt"), privateKey, address: account.address.toLowerCase() };
 }

@@ -100,6 +100,14 @@ export function createApp(deps: AppDeps): Hono {
     return context.json({ network: network.name, now_unix: now(), items: settlements });
   });
 
+  app.get("/v1/:network/lookup/:reference", async (context) => {
+    const network = resolveNetwork(context.req.param("network"));
+    const reference = context.req.param("reference");
+    if (!reference || reference.length > 128) return context.json(badRequest("reference must be 1–128 characters"), 400);
+    const items = await deps.reads.lookup(network.name as ChainName, reference);
+    return context.json({ network: network.name, freshness: await deps.reads.freshness(network.name as ChainName), reference, items });
+  });
+
   for (const route of READ_ROUTES) {
     app.get(`/v1/:network/${route.path}`, async (context) => {
       const network = resolveNetwork(context.req.param("network"));

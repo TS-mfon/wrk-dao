@@ -54,3 +54,11 @@ export function readWindows(network: Network): Promise<ReadResult<SettlementWind
   return read(network, "settlement-windows", (value) => isRecord(value) && value.network === network.slug
     && Number.isSafeInteger(value.now_unix) && Number(value.now_unix) > 0 && Array.isArray(value.items) && value.items.every((item) => validObject(item, network.chainId)));
 }
+
+export interface LookupResult { network: string; freshness: Freshness; reference: string; items: Array<{ collection: CollectionSlug; item: import("./model").ProtocolObject }> }
+
+export function readLookup(network: Network, reference: string): Promise<ReadResult<LookupResult>> {
+  return read(network, `lookup/${encodeURIComponent(reference)}`, (value) => isRecord(value) && value.network === network.slug
+    && validFreshness(value.freshness, network) && value.reference === reference && Array.isArray(value.items)
+    && value.items.every((entry) => isRecord(entry) && typeof entry.collection === "string" && validObject(entry.item, network.chainId)));
+}

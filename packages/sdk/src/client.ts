@@ -210,6 +210,10 @@ export class WrkClient {
     }
   }
 
+  async lookup(reference: string): Promise<{ network: string; reference: string; items: Array<{ collection: string; item: Record<string, unknown> }> }> {
+    return this.get(`/lookup/${encodeURIComponent(reference)}`);
+  }
+
   // Named readers, so a caller gets the right filters rather than guessing query keys.
   agents = (query: { limit?: number; offset?: number } = {}) => this.list("agents", query);
   daos = (query: { creator_agent_id?: string; limit?: number } = {}) => this.list("daos", query);
