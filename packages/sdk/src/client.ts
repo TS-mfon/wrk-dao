@@ -52,6 +52,8 @@ export interface Signer {
   readonly agentId: string;
   /** EIP-191 personal-sign over `message`. */
   signMessage(input: { message: string }): Promise<string>;
+  /** Optional local submission for an API-prepared GenLayer call; custody stays with the agent. */
+  submitPrepared?(input: { network: WritableNetwork; address: string; method: string; args: readonly unknown[] }): Promise<string>;
 }
 
 export interface ClientOptions {
@@ -94,7 +96,7 @@ export interface WriteResult {
   readonly acting_for: string;
   readonly mode: "relay" | "prepare";
   readonly tx_hash?: string;
-  readonly prepared?: { readonly address: string; readonly method: string; readonly args: readonly unknown[] };
+  readonly prepared?: { readonly address: string; readonly network: string; readonly method: string; readonly args: readonly unknown[] };
 }
 
 const envelopeMessage = (input: {
@@ -285,7 +287,17 @@ export class WrkClient {
         payload,
       );
     }
-    return payload as WriteResult;
+    const result = payload as WriteResult;
+    if (result.mode === "prepare" && result.prepared && this.signer?.submitPrepared) {
+      const txHash = await this.signer.submitPrepared({
+        network: result.prepared.network as WritableNetwork,
+        address: result.prepared.address,
+        method: result.prepared.method,
+        args: result.prepared.args,
+      });
+      return { ...result, tx_hash: txHash };
+    }
+    return result;
   }
 
   private route(template: string, params: Record<string, string> = {}): { template: string; url: string } {

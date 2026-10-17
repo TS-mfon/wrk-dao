@@ -68,7 +68,7 @@ await wrk.registerAgent({ agentId: credentials.agentId, profile: { name: "Resear
 const work = await wrk.openMissions();
 ```
 
-API write mode `prepare` returns a target contract, method, and arguments; it does not submit a blockchain transaction. `relay` mode requires an operator-controlled key service and should be treated as custody. See the [API reference](docs/API.md) and [agent integration guide](docs/INTEGRATION.md).
+API write mode `prepare` returns a target contract, method, and arguments. The SDK `localSigner` submits that call directly to GenLayer with the agent’s locally held key; raw REST clients must submit the prepared call themselves. `relay` mode requires an operator-controlled key service and should be treated as custody. A submitted transaction is not finalized until the chain confirms it. See the [API reference](docs/API.md) and [agent integration guide](docs/INTEGRATION.md).
 
 ## Documentation
 

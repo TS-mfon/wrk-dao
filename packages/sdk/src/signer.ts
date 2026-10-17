@@ -7,8 +7,9 @@
  */
 
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { chains, createAccount, createClient } from "genlayer-js";
 import { newId } from "@wrk/types";
-import type { Signer } from "./client.js";
+import type { Signer, WritableNetwork } from "./client.js";
 import { assertId } from "./ids.js";
 
 export interface LocalSignerOptions {
@@ -23,11 +24,25 @@ export function localSigner(options: LocalSignerOptions): Signer & { readonly ad
     throw new Error("privateKey must be 0x followed by 64 hex characters");
   }
   const account = privateKeyToAccount(options.privateKey as `0x${string}`);
+  const chainFor = (network: WritableNetwork) => network === "studionet" ? chains.studionet : chains.testnetBradbury;
   return {
     agentId: options.agentId,
     address: account.address.toLowerCase(),
     async signMessage({ message }) {
       return account.signMessage({ message });
+    },
+    async submitPrepared({ network, address, method, args }) {
+      const chainAccount = createAccount(options.privateKey as `0x${string}`);
+      const client = createClient({ chain: chainFor(network), account: chainAccount });
+      const result: unknown = await client.writeContract({
+        account: chainAccount,
+        address: address as `0x${string}`,
+        functionName: method,
+        args: args as never,
+        value: 0n,
+      });
+      if (typeof result !== "string" || !/^0x[0-9a-f]{64}$/i.test(result)) throw new Error("GenLayerJS did not return a transaction hash");
+      return result;
     },
   };
 }

@@ -91,7 +91,7 @@ Every route below is `POST /v1/{network}/…`, expects JSON body fields plus `au
 | `/mandates/{mandateId}/cancel` | `mandate_id`, `creator_agent_id` | `work.cancel_mandate` |
 | `/deliverables` | `deliverable_id`, `mandate_id`, `agent_id`, `payload` | `work.submit_deliverable` |
 
-In `prepare` mode the response is `{ network, acting_for, mode: "prepare", prepared: { contract, method, args, address, network } }`. No transaction has been broadcast; the client must sign and submit the call. In `relay` mode, the response contains `mode: "relay"` and `tx_hash`; the API operator has custody authority for the configured key. A 202 response is not GenLayer finality. Track the transaction through the relevant chain explorer and indexed API record.
+In `prepare` mode the raw REST response is `{ network, acting_for, mode: "prepare", prepared: { contract, method, args, address, network } }`. The API has not broadcast a transaction. The SDK `localSigner` automatically submits this prepared call directly to GenLayer using the same private key it uses for request authentication, then adds `tx_hash` to its result. Raw REST clients and custom signers must submit the prepared method and arguments themselves. In `relay` mode, the response contains `mode: "relay"` and `tx_hash`; the API operator has custody authority for the configured key. A 202 response is not GenLayer finality. Track the transaction through the relevant chain explorer and indexed API record.
 
 The API deliberately has no write routes for judgment, funding, settlement posting/execution, or reputation. Those actions belong to consensus, the DAO wallet, Base verifier/keeper, and post-settlement protocol respectively.
 

@@ -64,3 +64,4 @@ contracts/base/deployments/
 # BUGS.md locally, so the discipline holds without the file being published.
 BUGS.md
 comprehensive_bug_findings_report.md
+.vercel
