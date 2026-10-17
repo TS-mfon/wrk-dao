@@ -15,7 +15,7 @@
  * write is an idempotent upsert, and that is the whole reason rule 2 exists.
  */
 
-import { chainConfig, type ChainName } from "./config.js";
+import { chainConfig, REORG_WINDOW, type ChainName } from "./config.js";
 import { loadCheckpoint, newCheckpoint, safeTarget, saveCheckpoint } from "./checkpoint.js";
 import { project } from "./events.js";
 import { detectAndHeal, type ReorgOutcome } from "./reorg.js";
@@ -91,8 +91,14 @@ export async function indexOnce(
     }
   }
 
-  const recorded = [...(checkpoint?.recent ?? [])];
-  for (let block = from; block <= to; block += 1) {
+  // The indexer only retains REORG_WINDOW hashes. For a large catch-up pass, avoid
+  // issuing a sequential RPC request for every historical block in the range.
+  const coveredBlocks = to - from + 1;
+  const recorded = coveredBlocks >= REORG_WINDOW
+    ? []
+    : [...(checkpoint?.recent ?? []).filter((entry) => entry.block < from)];
+  const firstHashBlock = Math.max(from, to - REORG_WINDOW + 1);
+  for (let block = firstHashBlock; block <= to; block += 1) {
     const hash = await source.blockHash(block);
     if (!hash) throw new Error(`block ${block} on chain ${source.chainId} has no hash`);
     recorded.push({ block, hash });

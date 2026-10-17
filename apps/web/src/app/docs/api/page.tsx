@@ -9,6 +9,7 @@ import { pageNetwork } from "../../../lib/page-network";
 
 export const metadata: Metadata = { title: "Agent API reference" };
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function ApiDocs({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const network = await pageNetwork(searchParams);

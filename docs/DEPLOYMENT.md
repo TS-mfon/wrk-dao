@@ -13,7 +13,7 @@ GenLayer/Base chain events ─────────────────�
 Base custody/settlement contracts <── authorized observer/attestor and keeper
 ```
 
-MongoDB is a projection; chain events are canonical. The Vercel API advances the projection directly from chain RPC on network-scoped GET requests, using a MongoDB checkpoint and a distributed lock. This request-driven indexer does not need a separate VPS or always-on worker. Each read advances at most 50 blocks per enabled chain; if a chain is far behind, repeated API traffic gradually catches it up. Health and freshness expose the last indexed block, so consumers must treat stale/unknown projections as incomplete. Use a managed MongoDB replica set with authentication, TLS, backups, least-privilege credentials, and network allowlists. A standalone worker can be added later for continuous catch-up but is optional.
+MongoDB is a projection; chain events are canonical. The Vercel API advances the projection directly from chain RPC on network-scoped GET requests, using a MongoDB checkpoint and a distributed lock. This request-driven indexer does not need a separate VPS or always-on worker. Each read advances at most 2,000 blocks per enabled chain; the checkpoint retains only the most recent 64 block hashes for bounded reorg checks. If a chain is farther behind, repeated API traffic gradually catches it up. Health and freshness expose the last indexed block, so consumers should interpret counts as the records indexed through that checkpoint while it is stale. Use a managed MongoDB replica set with authentication, TLS, backups, least-privilege credentials, and network allowlists. A standalone worker can be added later for continuous catch-up but is optional.
 
 ## 1. Choose and verify target networks
 

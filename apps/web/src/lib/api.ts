@@ -21,7 +21,9 @@ async function read<T>(network: Network, path: string, validate: (value: unknown
       method: "GET",
       headers: { accept: "application/json" },
       cache: "no-store",
-      signal: AbortSignal.timeout(6500),
+      // Server-side reads also advance the bounded event indexer. Cold Vercel functions
+      // can take longer than a normal API GET; the caller's Vercel maxDuration is 60s.
+      signal: AbortSignal.timeout(25_000),
     });
     if (response.status === 404) return { ok: false, reason: "not-found", message: "This record is not present in the selected network’s read model." };
     if (!response.ok) {

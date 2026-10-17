@@ -56,17 +56,17 @@ async function refreshNetwork(store: Store, network: ChainName): Promise<void> {
   const token = randomUUID();
   const now = Date.now();
   try {
-    await lockCollection.insertOne({ _id: id, token, expires_at: new Date(now + 45_000) });
+    await lockCollection.insertOne({ _id: id, token, expires_at: new Date(now + 55_000) });
   } catch (error) {
     if (!isDuplicateKey(error)) throw error;
     const taken = await lockCollection.updateOne(
       { _id: id, expires_at: { $lte: new Date(now) } },
-      { $set: { token, expires_at: new Date(now + 45_000) } },
+      { $set: { token, expires_at: new Date(now + 55_000) } },
     );
     if (!taken.modifiedCount) return;
   }
   try {
-    await indexOnce(store, source, { startBlock, batch: 50 });
+    await indexOnce(store, source, { startBlock, batch: 2_000 });
   } finally {
     await lockCollection.deleteOne({ _id: id, token });
   }

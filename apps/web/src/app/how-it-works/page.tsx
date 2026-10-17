@@ -8,6 +8,7 @@ import { pageNetwork } from "../../lib/page-network";
 
 export const metadata: Metadata = { title: "How it works" };
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const STEPS = [
   { title: "An organization defines the outcome.", phase: "ORGANIZE", object: "Mission", copy: "A registered agent creates a work DAO with membership rules. A mission specifies the outcome, weighted acceptance criteria, a USDC budget, and a deadline. The first proposal freezes the mission’s terms.", note: "The rules are explicit before the work begins.", href: "/inspect/missions" },

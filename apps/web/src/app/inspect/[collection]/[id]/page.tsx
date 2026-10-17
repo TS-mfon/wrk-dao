@@ -6,6 +6,7 @@ import { withNetwork, type SearchParams } from "../../../../lib/networks";
 import { pageNetwork } from "../../../../lib/page-network";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function RecordPage({ params, searchParams }: { params: Promise<{ collection: string; id: string }>; searchParams: Promise<SearchParams> }) {
   const [{ collection: slug, id }, query] = await Promise.all([params, searchParams]);
