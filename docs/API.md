@@ -137,11 +137,14 @@ The API deliberately has no write routes for judgment, funding, settlement posti
 
 ## Errors
 
-Errors are JSON objects with `error` and `detail`. `400` indicates unknown network, malformed JSON, schema error, or invalid pagination; `401` indicates missing/invalid/expired signature or replay; `403` indicates the signature does not act for the body’s agent; `404` means no route or record; `422` is a deterministic contract refusal and should not be retried unchanged; `502` is an upstream chain submission failure and may require checking chain state before retrying; `500` is an API internal failure. Clients should use the HTTP status and error code rather than parse prose.
+Errors from API routes are JSON objects with `error` and `detail`. The table gives API-generated outcomes. Hosting layers may also return redirects, rate limits, or gateway errors before the request reaches this handler. Clients should inspect `Location` on a redirect, follow the canonical HTTPS `/api` URL, and never infer that a redirected write was executed until its final response is received. A `202` means prepared/submitted, not finalized. A `302` is a temporary redirect; preserve the method/body only when following it is safe and expected. `301`/`308` indicate a permanent canonical URL change; update the configured base URL. `304` is a cache validation response for conditional reads and has no body. `405` means the path exists but the HTTP method is unsupported. `429` means the host rate limit was reached; wait per `Retry-After` and use jitter. These 3xx/304/405/429 statuses are hosting/proxy outcomes, not protocol state transitions.
 
 | HTTP | Error code | Meaning / client action |
 | ---: | --- | --- |
 | 202 | — | Authenticated call was prepared or relay-submitted. SDK `tx_hash` means submitted, not finalized. |
+| 301 / 308 | Hosting redirect | The resource has a permanent canonical URL. Update the API base URL; use HTTPS and include `/api`. |
+| 302 / 307 | Hosting redirect | Temporary redirect. Read `Location`; avoid blindly replaying a state-changing request unless the destination and method-preserving behavior are trusted. |
+| 304 | — | Conditional GET is unchanged; reuse the cached representation. This is not an error and does not apply to write completion. |
 | 400 | `bad_request` | Correct network, JSON body, route schema, or pagination then sign a new request. |
 | 401 | `unauthorized` | Signature malformed/invalid, expiry invalid, or nonce reused; create a new envelope. |
 | 403 | `unauthorized` | Signer controls a different agent, or bootstrap operator/profile mismatch; do not retry with the same identity data. |
@@ -150,6 +153,11 @@ Errors are JSON objects with `error` and `detail`. `400` indicates unknown netwo
 | 500 | `internal` | Unexpected service failure; response hides internal exception details. Check operator logs. |
 | 502 | `upstream` | Relay submission failed; inspect transaction/nonce/contract state before retrying. |
 | 503 | `service_not_ready` | MongoDB is missing or unavailable in the Vercel service; check `GET /api` and service configuration. |
+| 405 | Hosting `method_not_allowed` | The route does not accept this method. Use the documented method and path. |
+| 429 | Hosting `rate_limited` | Too many requests. Honor `Retry-After`, back off with jitter, and avoid retrying a write without checking its transaction state. |
+| 504 | Hosting `gateway_timeout` | The function or upstream RPC exceeded its time budget. Outcome may be ambiguous for writes; use any returned hash or inspect the chain before retrying with a fresh nonce. |
+
+`302` is not an API success code and does not mean a DAO, request, payment, or adjudication was created. For mutations, configure the final HTTPS API URL directly rather than relying on redirect behavior. The API itself does not currently emit `302` or `304`; these can be added by the browser cache, Vercel, or an upstream gateway. Likewise, a host-generated `429`/`504` may not use the API JSON error shape.
 
 The API claims a nonce before submitting/returning the call. If the API fails after the nonce is claimed, the client MUST use a fresh nonce/signature. A timeout after SDK direct submission is ambiguous; query the transaction hash if received, then inspect the chain before retrying the business operation.
 

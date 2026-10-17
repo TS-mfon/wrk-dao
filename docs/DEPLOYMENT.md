@@ -5,15 +5,15 @@ WRK DAO is a multi-service product, not a single Vercel application. The fronten
 ## Deployment topology
 
 ```text
-Browser ──HTTPS──> Next.js frontend / Vercel Node API route ──> MongoDB read model
-                                              │                  ▲
-                                              ├── GenLayer RPC   │
-                                              └── registry views │
-GenLayer events ──> durable indexer process ──────────────────────┘
+Browser/agent ──HTTPS──> Next.js + Vercel API ──> MongoDB read model
+                                  │                    ▲
+                                  ├── GenLayer RPC ─────┤ bounded on-demand event indexing
+                                  └── Base RPC ─────────┘
+GenLayer/Base chain events ────────────────────────────┘
 Base custody/settlement contracts <── authorized observer/attestor and keeper
 ```
 
-MongoDB is a projection; chain events are canonical. Keep API and indexer near the same database. Use a managed MongoDB replica set with authentication, TLS, backups, least-privilege credentials, and network allowlists. The indexer must be a persistent process with restart supervision; a request-scoped/serverless function is not a substitute for its polling/checkpoint loop.
+MongoDB is a projection; chain events are canonical. The Vercel API advances the projection directly from chain RPC on network-scoped GET requests, using a MongoDB checkpoint and a distributed lock. This request-driven indexer does not need a separate VPS or always-on worker. Each read advances at most 50 blocks per enabled chain; if a chain is far behind, repeated API traffic gradually catches it up. Health and freshness expose the last indexed block, so consumers must treat stale/unknown projections as incomplete. Use a managed MongoDB replica set with authentication, TLS, backups, least-privilege credentials, and network allowlists. A standalone worker can be added later for continuous catch-up but is optional.
 
 ## 1. Choose and verify target networks
 
@@ -37,7 +37,7 @@ GenLayer deployment should use the supported GenLayer CLI and the selected built
 
 ## 3. Configure and run MongoDB/indexer
 
-Set `MONGODB_URI` and `MONGODB_DB` in the API/indexer runtime. Use separate least-privilege credentials per environment. Initialize indexes through the store initialization path. Configure `GENLAYER_STUDIONET_RPC_URL`, `GENLAYER_BRADBURY_RPC_URL`, and `BASE_SEPOLIA_RPC_URL`; provide comma-separated contract addresses in `WRK_STUDIONET_ADDRESSES`, `WRK_BRADBURY_ADDRESSES`, and `WRK_BASE_ADDRESSES`. Use the deployed event-emitting contracts and start indexing at the appropriate configured deployment blocks. Then start the indexer as a persistent supervised process:
+Set `MONGODB_URI` and `MONGODB_DB` in the API runtime. Use separate least-privilege credentials per environment. Initialize indexes through the store initialization path. Configure the RPC URLs and comma-separated event-contract addresses. Set each `WRK_*_START_BLOCK` to the earliest deployment block for its configured addresses; the API uses these values when creating its first checkpoint. For local operations, the standalone indexer CLI remains available:
 
 ```sh
 pnpm --filter @wrk/indexer build
@@ -57,7 +57,7 @@ pnpm --filter @wrk/api start
 
 Check `GET /v1/health`, `GET /v1/meta`, and each `GET /v1/{network}/health`. Verify a known registry view, inspect a known indexed record, and submit a non-economic write on a disposable test agent. Confirm chain transaction finality and that the indexer observes its event. The API’s `health` endpoint means only that the process responds; network health and freshness are separate.
 
-The API includes a GenLayerJS adapter for built-in StudioNet and Bradbury networks. Registry reads work once those addresses are configured. Prepare mode is operational only when the API can reach MongoDB and the GenLayer contracts. Relay mode additionally needs `WRK_RELAY_KEYS`, a JSON map of lowercase operator addresses to matching private keys; this grants the API custody authority for those agents and should only be enabled intentionally. `GET /api` and the UI readiness states report which dependencies remain unavailable.
+The API includes a GenLayerJS adapter for built-in StudioNet and Bradbury networks. Prepare mode is operational only when the API can reach MongoDB and the GenLayer contracts. Relay mode additionally needs `WRK_RELAY_KEYS`, a JSON map of lowercase operator addresses to matching private keys; this grants the API custody authority for those agents and should only be enabled intentionally. `GET /api` reports environment presence; network health reports actual projection freshness.
 
 ## 5. Deploy the frontend and API to Vercel
 
@@ -65,7 +65,7 @@ The existing Vercel project serves Next.js pages and the Hono API through the No
 
 Set Vercel production variables `MONGODB_URI`, `MONGODB_DB`, `WRK_STUDIONET_CONTRACTS`, `WRK_BRADBURY_CONTRACTS`, `WRK_STUDIONET_ADDRESSES`, `WRK_BRADBURY_ADDRESSES`, and `WRK_BASE_ADDRESSES` as those services are provisioned. Never expose these through `NEXT_PUBLIC_` variables. Verify `GET /api`, `/api/v1/meta`, `/api/v1/health`, `/`, `/docs`, `/inspect`, `/inspect/lookup`, and `/monitoring` on the public domain.
 
-The API route is deployed with the frontend, but cannot serve indexed protocol data until MongoDB is configured and the persistent indexer and contracts are available. The Vercel project currently has no environment variables; the repository `.env` points MongoDB at `127.0.0.1`, so that local URL must never be copied into production. Serverless functions are stateless; run the indexer on a persistent worker and connect both services to a remotely reachable MongoDB. `GET /api` reports configured variable presence only; `protocol_ready` stays false until live database, RPC, contract, and indexer checks have been performed independently.
+The API route is deployed with the frontend. Configure MongoDB, RPC endpoints, contract maps, and event-address maps in Vercel production variables. The repository `.env` may point MongoDB at localhost; never copy that local URL into production. Serverless functions are stateless, so MongoDB checkpoints and locks provide shared progress between requests. `GET /api` reports variable presence only; verify API network health and freshness to confirm live connectivity.
 
 ## 6. Keeper and settlement operations
 

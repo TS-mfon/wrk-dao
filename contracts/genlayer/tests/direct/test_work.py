@@ -457,10 +457,21 @@ class TestWiring:
         assert observer == OBSERVER.lower()
         assert deployer == OP1.lower()
 
+    def test_adjudicator_cycle_can_only_be_wired_once_by_deployer(self, deploy, direct_vm):
+        zero = "0x" + "0" * 40
+        direct_vm.sender = hexaddr(OP1)
+        work = deploy("wrk_work.py", REGISTRY, zero, OBSERVER)
+        direct_vm.sender = hexaddr(OP2)
+        with pytest.raises(Exception, match="only the work contract deployer"):
+            work.configure_adjudicator(ADJUDICATOR)
+        direct_vm.sender = hexaddr(OP1)
+        assert work.configure_adjudicator(ADJUDICATOR) == ADJUDICATOR.lower()
+        with pytest.raises(Exception, match="already configured"):
+            work.configure_adjudicator(REGISTRY)
+
     def test_a_malformed_wiring_address_is_refused_at_construction(self, deploy_work):
-        """There is no setter for these addresses, so construction is the only chance to
-        refuse one. A registry address that is not an address would make every
-        authorization check in the contract fail closed at best and unpredictably at worst.
+        """A malformed registry address would make every authorization check fail closed
+        at best and unpredictably at worst.
         """
         with pytest.raises(Exception, match="must be a 0x-prefixed 20-byte address"):
             deploy_work("wrk_work.py", "not-an-address", ADJUDICATOR, OBSERVER)

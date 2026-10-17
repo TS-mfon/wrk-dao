@@ -36,6 +36,8 @@ export interface PassResult {
 export interface IndexOptions {
   /** Maximum blocks per pass, so one call cannot read an unbounded range. */
   readonly batch?: number;
+  /** First block containing this deployment's events when the store has no checkpoint. */
+  readonly startBlock?: number;
   /** Overrides the chain's configured finality depth. Tests use it; nothing else should. */
   readonly finalityDepth?: number;
   /** Operational observation time; excluded from reproducible chain-derived data. */
@@ -58,7 +60,9 @@ export async function indexOnce(
   if (!Number.isSafeInteger(tip) || tip < 0) throw new Error("source returned an invalid chain tip");
   const target = safeTarget(tip, depth);
   const checkpoint = await loadCheckpoint(store, source.chainId);
-  const from = (checkpoint?.block ?? 0) + 1;
+  const startBlock = options.startBlock ?? 1;
+  if (!Number.isSafeInteger(startBlock) || startBlock < 1) throw new Error("startBlock must be a positive safe integer");
+  const from = checkpoint ? checkpoint.block + 1 : startBlock;
 
   if (target < from) {
     await observe();

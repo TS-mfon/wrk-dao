@@ -247,8 +247,10 @@ class WrkWork(gl.Contract):
     def __init__(self, registry: str, adjudicator: str, settlement_observer: str) -> None:
         """Wire the three addresses this contract trusts.
 
-        All three are fixed at construction and there is no setter. A rotatable registry
-        address would let whoever can rotate it substitute a registry that answers "yes,
+        The registry and observer are fixed at construction. The adjudicator may be
+        initialized to the zero address and wired exactly once by the deployer after both
+        sides of the work/adjudicator cycle exist. A rotatable registry address would let
+        whoever can rotate it substitute a registry that answers "yes,
         this caller owns that agent" to everything — which is every authorization check in
         this contract defeated at once.
         """
@@ -264,6 +266,19 @@ class WrkWork(gl.Contract):
         self.adjudicator = adjudicator.lower()
         self.settlement_observer = settlement_observer.lower()
         self.deployer = gl.message.sender_address.as_hex.lower()
+
+    @gl.public.write
+    def configure_adjudicator(self, adjudicator: str) -> str:
+        """Complete the cyclic deployment wire once; never rotate an active adjudicator."""
+        sender = gl.message.sender_address.as_hex.lower()
+        if sender != self.deployer:
+            _reject("only the work contract deployer may configure its adjudicator")
+        if self.adjudicator != "0x" + "0" * 40:
+            _reject("the work contract adjudicator is already configured")
+        if not EVM_ADDRESS.match(adjudicator) or adjudicator.lower() == "0x" + "0" * 40:
+            _reject("adjudicator must be a nonzero 0x-prefixed 20-byte address")
+        self.adjudicator = adjudicator.lower()
+        return self.adjudicator
 
     # ── internal helpers ────────────────────────────────────────────────────
 

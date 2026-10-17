@@ -2,6 +2,7 @@ import { handleVercelApi } from "@wrk/api/vercel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 async function handle(request: Request) { return handleVercelApi(request); }
 

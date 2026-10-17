@@ -1,0 +1,20 @@
+{
+  "network": "studionet",
+  "chain_id": 61999,
+  "deployer": "0xEd9EDd8586b20524CafA4F568413C504C9B03172",
+  "settlement_observer": "0xed9edd8586b20524cafa4f568413c504c9b03172",
+  "deployed_at_block": 1792261297,
+  "contracts": {
+    "registry": "0x19c60f2D9b7c714131425c5D9FbAdE4A9401b196",
+    "work": "0xc6f37b8A16de42CcA05f3172973a9ac36682a748",
+    "adjudicator": "0xf7F09927aB12f46C0F1f2960d9A004eB1bf92157",
+    "reputation": "0x29eb8a2Be322Fd17b956A145494734929dC34D35"
+  },
+  "transactions": {
+    "registry": "0x704d7655b430df72807f6d562985ff93bcb2b9d683c9312aa49ea539eedadc59",
+    "work": "0xf697c1d6305d86b9449a9aa7c37198a35840ad3c2cfb5ca9d5439338612223fd",
+    "adjudicator": "0x073de3c9d9645f71a8deddfb1d24a39b30245ad09278f15f32aa2e3d678dd746",
+    "reputation": "0x5add752dc1b00593140e5267eb19f937b7a7293eb6cc0aca327866851317d20a"
+  },
+  "index_start_block": 1792261297
+}
