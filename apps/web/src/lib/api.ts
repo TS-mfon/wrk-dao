@@ -11,10 +11,10 @@ function validFreshness(value: unknown, network: Network): value is Freshness {
 async function read<T>(network: Network, path: string, validate: (value: unknown) => boolean): Promise<ReadResult<T>> {
   try {
     const configured = process.env.WRK_API_URL;
-    if (!configured && process.env.NODE_ENV === "production") {
-      return { ok: false, reason: "unavailable", message: "The protocol API has not been connected to this deployment." };
-    }
-    const origin = configured ?? "http://127.0.0.1:3000";
+    const deploymentHost = process.env.VERCEL_URL;
+    const origin = configured ?? (deploymentHost
+      ? `https://${deploymentHost}/api`
+      : process.env.NODE_ENV === "production" ? "https://wrk-dao.vercel.app/api" : "http://127.0.0.1:3100/api");
     const url = new URL(`${origin.replace(/\/+$/, "")}/v1/${network.slug}/${path}`);
     if (!["https:", "http:"].includes(url.protocol)) throw new Error("Invalid API origin");
     const response = await fetch(url, {
@@ -24,7 +24,11 @@ async function read<T>(network: Network, path: string, validate: (value: unknown
       signal: AbortSignal.timeout(6500),
     });
     if (response.status === 404) return { ok: false, reason: "not-found", message: "This record is not present in the selected network’s read model." };
-    if (!response.ok) return { ok: false, reason: "unavailable", message: `The protocol API returned HTTP ${response.status}. Current state cannot be verified.` };
+    if (!response.ok) {
+      const body: unknown = await response.json().catch(() => null);
+      const detail = isRecord(body) && typeof body.detail === "string" ? ` ${body.detail}` : "";
+      return { ok: false, reason: "unavailable", message: `The protocol API returned HTTP ${response.status}.${detail} Current state cannot be verified.` };
+    }
     const payload: unknown = await response.json();
     if (!validate(payload)) return { ok: false, reason: "invalid", message: "The API response is incomplete or belongs to a different chain. It cannot be displayed as this network’s state." };
     return { ok: true, data: payload as T, observedAt: Math.floor(Date.now() / 1000) };

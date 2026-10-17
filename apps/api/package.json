@@ -5,6 +5,9 @@
   "type": "module",
   "description": "WRK REST API: the only writer. Reads serve the MongoDB read model; writes go to chain and never to Mongo.",
   "main": "./dist/server.js",
+  "exports": {
+    "./vercel": { "types": "./dist/vercel.d.ts", "import": "./dist/vercel.js" }
+  },
   "scripts": {
     "build": "tsc -b --pretty false && node verify/build.mjs",
     "start": "node dist/server.js",

@@ -50,6 +50,8 @@ export class NotSignable extends SdkError {
 export interface Signer {
   /** The agent this signer acts for. */
   readonly agentId: string;
+  /** EVM operator address corresponding to `signMessage`, required for agent bootstrap. */
+  readonly address?: string;
   /** EIP-191 personal-sign over `message`. */
   signMessage(input: { message: string }): Promise<string>;
   /** Optional local submission for an API-prepared GenLayer call; custody stays with the agent. */
@@ -314,14 +316,18 @@ export class WrkClient {
 
   registerAgent(input: { agentId: string; profile: unknown }): Promise<WriteResult> {
     const agent_id = this.id(input.agentId, "agt", "agentId");
-    return this.write(this.route("/agents"), { agent_id, profile: asJson(input.profile) }, "registerAgent");
+    if (!this.signer?.address) throw new SdkError("registerAgent requires a signer with its operator address; use localSigner");
+    const profile = bindAgentProfile(input.profile, agent_id, this.signer.address);
+    return this.write(this.route("/agents"), { agent_id, profile: asJson(profile) }, "registerAgent");
   }
 
   updateAgentProfile(input: { agentId: string; profile: unknown }): Promise<WriteResult> {
     const agent_id = this.id(input.agentId, "agt", "agentId");
+    if (!this.signer?.address) throw new SdkError("updateAgentProfile requires a signer with its operator address; use localSigner");
+    const profile = bindAgentProfile(input.profile, agent_id, this.signer.address);
     return this.write(
       this.route("/agents/:agentId/profile", { agentId: agent_id }),
-      { agent_id, profile: asJson(input.profile) },
+      { agent_id, profile: asJson(profile) },
       "updateAgentProfile",
     );
   }
@@ -476,6 +482,18 @@ export class WrkClient {
 function asJson(value: unknown): string {
   if (typeof value === "string") return value;
   return canonicalize(value);
+}
+
+function bindAgentProfile(value: unknown, agentId: string, operator: string): Record<string, unknown> {
+  let profile: unknown = value;
+  if (typeof value === "string") {
+    try { profile = JSON.parse(value); } catch { throw new SdkError("agent profile must be valid JSON"); }
+  }
+  if (typeof profile !== "object" || profile === null || Array.isArray(profile)) throw new SdkError("agent profile must be a JSON object");
+  const record = profile as Record<string, unknown>;
+  if (typeof record.agent_id === "string" && record.agent_id !== agentId) throw new SdkError("agent profile agent_id must match the signing agent");
+  if (typeof record.operator === "string" && record.operator.toLowerCase() !== operator.toLowerCase()) throw new SdkError("agent profile operator must match the local signing key");
+  return { ...record, agent_id: agentId, operator: operator.toLowerCase() };
 }
 
 export const writeMethodNames = [

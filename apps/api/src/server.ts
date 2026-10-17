@@ -4,10 +4,11 @@
 import { serve } from "@hono/node-server";
 import { Store, mongoConfigFromEnv } from "@wrk/indexer";
 import { createApp } from "./app.js";
-import { ChainWrites, deploymentSchema, type Deployment, type GenLayerWriter, type WriteMode } from "./chain.js";
+import { ChainWrites, deploymentSchema, type Deployment, type WriteMode } from "./chain.js";
 import { ReadModel } from "./readmodel.js";
 import { GENLAYER_NETWORKS } from "./networks.js";
 import { GenLayerJsWriter } from "./genlayer-writer.js";
+import { MongoNonceLog } from "./nonces.js";
 
 function deployments(): Record<string, Deployment> {
   const out: Record<string, Deployment> = {};
@@ -21,6 +22,9 @@ function deployments(): Record<string, Deployment> {
 
 async function main(): Promise<void> {
   const store = await Store.open(mongoConfigFromEnv());
+  await store.ensureIndexes();
+  const nonces = new MongoNonceLog(store.db);
+  await nonces.ensureIndexes();
   const mode = (process.env.WRK_WRITE_MODE ?? "prepare") as WriteMode;
   if (mode !== "prepare" && mode !== "relay") {
     throw new Error(`WRK_WRITE_MODE must be "prepare" or "relay", got ${JSON.stringify(mode)}`);
@@ -31,6 +35,7 @@ async function main(): Promise<void> {
     reads: new ReadModel(store),
     writes,
     directory: writes.agentDirectory(),
+    nonces,
   });
 
   const port = Number(process.env.PORT ?? 8787);

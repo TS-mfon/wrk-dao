@@ -7,6 +7,7 @@
  */
 
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { ChainName, CollectionName } from "@wrk/indexer";
 import {
   AuthFailed,
@@ -52,6 +53,8 @@ const READ_ROUTES: ReadonlyArray<{
 
 export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
+  const allowedOrigins = process.env.WRK_CORS_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? "*";
+  app.use("*", cors({ origin: allowedOrigins, allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["Content-Type", "Accept"], maxAge: 600 }));
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const nonces = deps.nonces ?? new MemoryNonceLog(now);
 
@@ -63,10 +66,7 @@ export function createApp(deps: AppDeps): Hono {
     // that can never succeed, which for a relaying API means a transaction per attempt.
     if (error instanceof ChainRefused) return context.json(refused(error.detail), 422);
     if (error instanceof ChainWriteFailed) return context.json(upstream(error.detail), 502);
-    return context.json(
-      { error: "internal", detail: error instanceof Error ? error.message : String(error) },
-      500,
-    );
+    return context.json({ error: "internal", detail: "An internal API error occurred." }, 500);
   });
 
   // ── discovery ─────────────────────────────────────────────────────────────

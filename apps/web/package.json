@@ -5,7 +5,7 @@
   "description": "Protocol-level read-only UI over the WRK API: landing, docs, monitoring and inspection.",
   "scripts": {
     "dev": "next dev -p 3100",
-    "build": "next build && node verify/build.mjs",
+    "build": "pnpm --filter @wrk/api build && next build && node verify/build.mjs",
     "start": "next start -p 3100",
     "verify:views": "node verify/views.mjs",
     "verify:live-data": "node verify/live-data.mjs",
@@ -20,6 +20,7 @@
     "test": "vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
   },
   "dependencies": {
+    "@wrk/api": "workspace:*",
     "next": "16.4.1",
     "react": "19.1.1",
     "react-dom": "19.1.1"
@@ -29,7 +30,6 @@
     "@types/node": "26.6.3",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
-    "@wrk/api": "workspace:*",
     "@wrk/indexer": "workspace:*",
     "@wrk/types": "workspace:*",
     "mongodb": "6.21.0",

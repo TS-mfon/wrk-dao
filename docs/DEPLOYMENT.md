@@ -5,7 +5,7 @@ WRK DAO is a multi-service product, not a single Vercel application. The fronten
 ## Deployment topology
 
 ```text
-Browser ──HTTPS──> Next.js frontend ──HTTPS──> Hono API ──> MongoDB read model
+Browser ──HTTPS──> Next.js frontend / Vercel Node API route ──> MongoDB read model
                                               │                  ▲
                                               ├── GenLayer RPC   │
                                               └── registry views │
@@ -41,7 +41,7 @@ Set `MONGODB_URI` and `MONGODB_DB` in the API/indexer runtime. Use separate leas
 
 ```sh
 pnpm --filter @wrk/indexer build
-pnpm --filter @wrk/indexer start
+pnpm --filter @wrk/indexer exec wrk-indexer index
 ```
 
 Use the package’s actual CLI and environment names from its config; ensure the supervisor restarts on failure, logs checkpoint advancement, and alerts on a stalled head. Do not share production secrets with preview deployments. A fresh database can correctly show zero records only after the indexer has established an observed head/checkpoint; otherwise freshness should show unknown/stale.
@@ -57,13 +57,15 @@ pnpm --filter @wrk/api start
 
 Check `GET /v1/health`, `GET /v1/meta`, and each `GET /v1/{network}/health`. Verify a known registry view, inspect a known indexed record, and submit a non-economic write on a disposable test agent. Confirm chain transaction finality and that the indexer observes its event. The API’s `health` endpoint means only that the process responds; network health and freshness are separate.
 
-The API now includes a GenLayerJS adapter for built-in StudioNet and Bradbury networks. Registry reads work once those addresses are configured. Prepare mode is operational only when the API can reach MongoDB and the GenLayer contracts. Relay mode additionally needs `WRK_RELAY_KEYS`, a JSON map of lowercase operator addresses to matching private keys; this grants the API custody authority for those agents and should only be enabled intentionally. The live Vercel frontend remains disconnected until a separately hosted API and indexer have been provisioned, contract addresses supplied, and the production `WRK_API_URL` set.
+The API includes a GenLayerJS adapter for built-in StudioNet and Bradbury networks. Registry reads work once those addresses are configured. Prepare mode is operational only when the API can reach MongoDB and the GenLayer contracts. Relay mode additionally needs `WRK_RELAY_KEYS`, a JSON map of lowercase operator addresses to matching private keys; this grants the API custody authority for those agents and should only be enabled intentionally. `GET /api` and the UI readiness states report which dependencies remain unavailable.
 
-## 5. Deploy the frontend to Vercel
+## 5. Deploy the frontend and API to Vercel
 
-Create/choose a Vercel project for `apps/web` with the repository root configured as appropriate for the monorepo (the deployed project currently builds at repository root). Build command: `pnpm --filter @wrk/web build`; output is managed by Next.js. Set `WRK_API_URL` to the public HTTPS API origin for production and redeploy after the API health checks pass. Keep API secrets out of frontend variables: Next.js server-side `WRK_API_URL` is an origin, not a credential. Apply production domain, HTTPS, and deployment access settings intentionally. Verify `/`, `/docs`, `/inspect`, `/inspect/lookup`, and `/monitoring` over the public domain and confirm the network selector remains scoped.
+The existing Vercel project serves Next.js pages and the Hono API through the Node.js catch-all route `apps/web/src/app/api/[[...path]]/route.ts`. Public REST endpoints are under `/api/v1`; `GET /api` reports dependency readiness. The frontend defaults to its same-deployment API unless `WRK_API_URL` overrides it. The build runs `pnpm --filter @wrk/api build` before `next build` so the serverless route bundles the API.
 
-Do not point the production frontend at an API until the API’s chain-specific health, freshness, and read-only verification work. A missing URL should remain a visible unavailable state; do not set it to a placeholder to make the screen appear connected.
+Set Vercel production variables `MONGODB_URI`, `MONGODB_DB`, `WRK_STUDIONET_CONTRACTS`, `WRK_BRADBURY_CONTRACTS`, `WRK_STUDIONET_ADDRESSES`, `WRK_BRADBURY_ADDRESSES`, and `WRK_BASE_ADDRESSES` as those services are provisioned. Never expose these through `NEXT_PUBLIC_` variables. Verify `GET /api`, `/api/v1/meta`, `/api/v1/health`, `/`, `/docs`, `/inspect`, `/inspect/lookup`, and `/monitoring` on the public domain.
+
+The API route is deployed with the frontend, but cannot serve indexed protocol data until MongoDB is configured and the persistent indexer and contracts are available. The Vercel project currently has no environment variables; the repository `.env` points MongoDB at `127.0.0.1`, so that local URL must never be copied into production. Serverless functions are stateless; run the indexer on a persistent worker and connect both services to a remotely reachable MongoDB. `GET /api` reports configured variable presence only; `protocol_ready` stays false until live database, RPC, contract, and indexer checks have been performed independently.
 
 ## 6. Keeper and settlement operations
 
@@ -73,7 +75,7 @@ Configure the observer/attestor only after verifying the GenLayer finality sourc
 
 | Variable / configuration | Service | Notes |
 | --- | --- | --- |
-| `WRK_API_URL` | Next.js server runtime, agents, MCP | Public HTTPS origin of the API; no trailing slash required |
+| `WRK_API_URL` | Next.js server runtime, agents, MCP | Optional override; production default is `https://wrk-dao.vercel.app/api` |
 | `PORT` | API | HTTP listen port; defaults to 8787 |
 | `MONGODB_URI`, `MONGODB_DB` | API and indexer | TLS, least privilege, distinct environment database |
 | `WRK_WRITE_MODE` | API | `prepare` or `relay`; prepare is default |
@@ -94,7 +96,7 @@ Never paste `.env` values into issues, CI logs, deployment descriptions, or chat
 - [ ] API health, network health, read freshness, and known-record provenance are verified.
 - [ ] Test agent signing, registry authorization, a low-risk write, transaction finality, and event indexing end to end.
 - [ ] Settlement verifier, attestor threshold, exact payload, challenge window, and keeper alerting are verified independently.
-- [ ] Production Vercel `WRK_API_URL` points to the verified HTTPS API; public pages render real counts with freshness.
+- [ ] Vercel `GET /api` reports configured; public pages render real counts with current freshness.
 - [ ] Backups, monitoring, key rotation, incident response, and rate limits are configured.
 
 See [API](API.md), [integration](INTEGRATION.md), [architecture](ARCHITECTURE.md), and [specification](SPEC.md) for operational semantics.
