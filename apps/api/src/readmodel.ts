@@ -7,7 +7,7 @@
  * indexer's checkpoint — which every response states, so a caller is never guessing.
  */
 
-import { CHAINS, Store, type ChainName, type CollectionName } from "@wrk/indexer";
+import { CHAINS, Store, objectQuery, validateDocument, type ChainName, type CollectionName } from "@wrk/indexer";
 
 export interface Page<T> {
   readonly items: readonly T[];
@@ -41,13 +41,19 @@ export class ReadModel {
     return { "chain_ref.chain": chain };
   }
 
-  async freshness(network: ChainName): Promise<Freshness> {
+  async freshness(network: ChainName, nowUnix = Math.floor(Date.now() / 1000)): Promise<Freshness> {
     const chain = CHAINS[network].chainId;
     const checkpoint = await this.store
       .collection("indexer_checkpoints")
       .findOne({ _id: `chain:${chain}` as never });
     const block = checkpoint ? Number(checkpoint.block) : null;
-    return { network, chain, indexed_block: block, stale: block === null };
+    const observation = await this.store.db.collection("indexer_observations").findOne({ chain });
+    const observed = Number(observation?.observed_at_unix ?? 0);
+    const head = Number(observation?.observed_head ?? NaN);
+    const stale = block === null || !Number.isSafeInteger(head) || observed <= 0 ||
+      observed > nowUnix + 30 || nowUnix - observed > 120 ||
+      (block !== null && head - block > CHAINS[network].finalityDepth);
+    return { network, chain, indexed_block: block, stale };
   }
 
   async list(
@@ -58,16 +64,17 @@ export class ReadModel {
     offset = 0,
   ): Promise<Page<Record<string, unknown>>> {
     const chain = CHAINS[network].chainId;
-    const query = { ...this.scope(chain), ...filter };
+    const query = { ...filter, ...this.scope(chain) };
+    const effectiveLimit = Math.min(Math.max(limit, 1), 200);
     const total = await this.store.collection(collection).countDocuments(query);
     const items = await this.store
       .collection(collection)
       .find(query)
-      .sort({ seq: 1 })
+      .sort({ seq: 1, _id: 1 })
       .skip(offset)
-      .limit(Math.min(Math.max(limit, 1), 200))
+      .limit(effectiveLimit)
       .toArray();
-    return { items: items as Record<string, unknown>[], total, limit, offset };
+    return { items: items.map((item) => validateDocument(collection, item)), total, limit: effectiveLimit, offset };
   }
 
   async get(
@@ -76,10 +83,17 @@ export class ReadModel {
     id: string,
   ): Promise<Record<string, unknown> | null> {
     const chain = CHAINS[network].chainId;
-    const found = await this.store
-      .collection(collection)
-      .findOne({ _id: id as never, ...this.scope(chain) });
-    return (found as Record<string, unknown> | null) ?? null;
+    const fields: Partial<Record<CollectionName, string>> = {
+      agents: "agent_id", daos: "dao_id", missions: "mission_id", proposals: "proposal_id",
+      mandates: "mandate_id", deliverables: "deliverable_id", evidence: "evidence_id",
+      decisions: "decision_id", settlements: "settlement_id",
+    };
+    const field = fields[collection];
+    const query = objectQuery(id, chain);
+    const found = await this.store.collection(collection).findOne(field
+      ? { ...this.scope(chain), $or: [query, { [field]: id }] }
+      : query);
+    return found ? validateDocument(collection, found) : null;
   }
 
   async count(
@@ -89,7 +103,7 @@ export class ReadModel {
   ): Promise<number> {
     return this.store
       .collection(collection)
-      .countDocuments({ ...this.scope(CHAINS[network].chainId), ...filter });
+      .countDocuments({ ...filter, ...this.scope(CHAINS[network].chainId) });
   }
 
   /**
@@ -99,8 +113,8 @@ export class ReadModel {
    * unreachable — and `freshness` is what tells the viewer the numbers may be behind
    * rather than letting a stalled indexer look like a quiet protocol.
    */
-  async health(network: ChainName): Promise<Record<string, unknown>> {
-    const freshness = await this.freshness(network);
+  async health(network: ChainName, nowUnix = Math.floor(Date.now() / 1000)): Promise<Record<string, unknown>> {
+    const freshness = await this.freshness(network, nowUnix);
     const [missionsOpen, mandatesLive, awaitingSettlement, settlementsPosted, agents, daos] =
       await Promise.all([
         this.count(network, "missions", { state: "OPEN" }),
@@ -110,7 +124,35 @@ export class ReadModel {
         this.count(network, "agents"),
         this.count(network, "daos"),
       ]);
+    const chain = CHAINS[network].chainId;
+    const [checkpoint, observation, lastExecution, inWindow, overdue, delayed] = await Promise.all([
+      this.store.collection("indexer_checkpoints").findOne({ chain }),
+      this.store.db.collection("indexer_observations").findOne({ chain }),
+      this.store.collection("settlements").findOne({ ...this.scope(chain), state: "EXECUTED" }, { sort: { executed_at_unix: -1 } }),
+      this.count(network, "settlements", { state: "POSTED", executable_at_unix: { $gt: nowUnix } }),
+      this.count(network, "settlements", { state: "POSTED", executable_at_unix: { $gt: 0, $lte: nowUnix } }),
+      this.count(network, "settlements", { state: "POSTED", executable_at_unix: { $gt: 0, $lte: nowUnix - 1200 } }),
+    ]);
+    const head = Number(observation?.observed_head);
+    const observedAt = Number(observation?.observed_at_unix);
+    const lastSuccess = Number(lastExecution?.executed_at_unix);
     return {
+      network, now_unix: nowUnix,
+      checkpoint: {
+        chain, indexed_block: freshness.indexed_block,
+        observed_head: Number.isSafeInteger(head) ? head : null,
+        lag_blocks: Number.isSafeInteger(head) && freshness.indexed_block !== null ? Math.max(0, head - freshness.indexed_block) : null,
+        observed_at_unix: Number.isSafeInteger(observedAt) && observedAt > 0 ? observedAt : null,
+        block_hash: checkpoint?.block_hash ?? null,
+      },
+      keeper: {
+        last_success_unix: Number.isSafeInteger(lastSuccess) && lastSuccess > 0 ? lastSuccess : null,
+        stale_after_seconds: 1200,
+        stale: delayed > 0 ? true : Number.isSafeInteger(lastSuccess) && nowUnix - lastSuccess <= 1200 ? false : null,
+        source: lastSuccess > 0 ? "indexed_settlement_execution" : null,
+      },
+      settlements_in_window: inWindow,
+      settlements_overdue: overdue,
       freshness,
       agents,
       daos,
@@ -139,7 +181,7 @@ export class ReadModel {
         seconds_until_executable: executableAt === 0 ? null : executableAt - nowUnix,
         // A keeper is best-effort and GitHub cron can be delayed, so an overdue
         // settlement must be visible rather than silent.
-        overdue: executableAt !== 0 && executableAt < nowUnix,
+        overdue: executableAt !== 0 && executableAt <= nowUnix,
       };
     });
   }

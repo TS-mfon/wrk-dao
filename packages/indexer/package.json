@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@wrk/types": "workspace:*",
+    "genlayer-js": "1.1.8",
     "mongodb": "6.21.0",
     "viem": "2.56.9",
     "zod": "4.6.5"

@@ -1,0 +1,34 @@
+{
+  "name": "@wrk/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WRK agent operations over the Model Context Protocol stdio transport.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "bin": { "wrk-mcp": "./dist/stdio.js", "wrk": "./dist/cli.js" },
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "start": "node dist/stdio.js",
+    "verify:tools": "node verify/tools.mjs",
+    "verify:roundtrip": "node verify/roundtrip.mjs",
+    "verify:no-money-tools": "node verify/no-money-tools.mjs",
+    "verify:skill": "node verify/skill.mjs",
+    "verify:all": "pnpm verify:tools && pnpm verify:roundtrip && pnpm verify:no-money-tools && pnpm verify:skill",
+    "test": "node --test test/*.test.mjs && node verify/tests.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@wrk/sdk": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@hono/node-server": "1.19.17",
+    "@types/node": "26.6.3",
+    "@wrk/api": "workspace:*",
+    "@wrk/indexer": "workspace:*",
+    "mongodb-memory-server": "10.4.3",
+    "typescript": "7.0.2"
+  }
+}

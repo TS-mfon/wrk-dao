@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// note": "Test-only. Vitest's transform resolves the nearest tsconfig to each file; without one here it walks up to the workspace solution file, whose references name projects that do not exist yet, and the transform fails before a single test runs. Not referenced by `tsc -b`, so it never emits.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "composite": false, "incremental": false, "noEmit": true, "types": ["node"] },
+  "include": ["."]
+}

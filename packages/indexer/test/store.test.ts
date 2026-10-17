@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { ValidationFailed } from "../src/store.js";
-import { freshStore, stopMongo, HASH, operatorFor, ulid, ref } from "./helpers.js";
+import { ValidationFailed, objectQuery } from "../src/store.js";
+import { freshStore, stopMongo, HASH, operatorFor, ulid, ref, profileFields } from "./helpers.js";
 
 afterAll(stopMongo);
 
@@ -13,7 +13,7 @@ const agent = (id: string, block = 1) => ({
     updated_at: block,
     agent_id: id,
     operator: operatorFor(id),
-    profile_hash: HASH("11"),
+    ...profileFields(id, operatorFor(id)),
     registered_at: 1800000000,
   },
   setOnInsert: { capabilities: [], dao_ids: [] },
@@ -45,7 +45,7 @@ describe("the store", () => {
       await store.apply(agent(id));
       // Something wrote to the collection that was not the indexer: a hand edit, or an
       // older version of this package.
-      await store.collection("agents").updateOne({ _id: id as never }, { $set: { smuggled: true } });
+      await store.collection("agents").updateOne(objectQuery(id, 61999), { $set: { smuggled: true } });
 
       // The next write fails loudly and names the offending key. Silently dropping it
       // would be friendlier and wrong: it would hide the fact that something outside the

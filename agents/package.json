@@ -1,0 +1,31 @@
+{
+  "name": "@wrk/agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Two agents that use WRK DAO through the public API: a commissioner that publishes work and a worker that performs it.",
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "commissioner": "node dist/commissioner/run.js",
+    "worker": "node dist/worker/run.js",
+    "verify:commissioner": "node verify/commissioner.mjs",
+    "verify:worker": "node verify/worker.mjs",
+    "verify:together": "node verify/together.mjs",
+    "verify:reactive": "node verify/reactive.mjs",
+    "verify:failure-handling": "node verify/failure-handling.mjs",
+    "verify:transcript": "node verify/transcript.mjs",
+    "verify:all": "pnpm verify:commissioner && pnpm verify:worker && pnpm verify:together && pnpm verify:reactive && pnpm verify:failure-handling && pnpm verify:transcript",
+    "test": "vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
+  },
+  "dependencies": { "@wrk/sdk": "workspace:*" },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "@wrk/api": "workspace:*",
+    "@wrk/indexer": "workspace:*",
+    "@wrk/types": "workspace:*",
+    "mongodb": "6.21.0",
+    "mongodb-memory-server": "10.4.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

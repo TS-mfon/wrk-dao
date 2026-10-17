@@ -1,0 +1,25 @@
+{
+  "name": "@wrk/settlement",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Finalized GenLayer decisions to Base settlement, with a permissionless challenge-window keeper.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "bin": { "wrk-settlement": "./dist/cli.js" },
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "typecheck:test": "tsc -p test/tsconfig.json --pretty false",
+    "verify:finality": "node verify/finality.mjs",
+    "verify:idempotent": "node verify/idempotent.mjs",
+    "verify:keeper": "node verify/keeper.mjs",
+    "verify:transcription": "node verify/transcription.mjs",
+    "verify:no-db": "node verify/no-db.mjs",
+    "keeper": "node dist/cli.js keeper",
+    "post": "node dist/cli.js post",
+    "test": "pnpm typecheck:test && vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
+  },
+  "dependencies": { "@wrk/types": "workspace:*", "genlayer-js": "1.1.8", "viem": "2.56.9", "zod": "4.6.5" },
+  "devDependencies": { "@types/node": "26.6.3", "typescript": "7.0.2", "vitest": "5.0.2", "yaml": "2.8.1" }
+}

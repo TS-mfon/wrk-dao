@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// note": "Test-only; see agents/test/tsconfig.json for why this file exists.",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "composite": false, "incremental": false, "noEmit": true, "types": ["node"] },
+  "include": ["."]
+}

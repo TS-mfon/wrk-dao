@@ -49,7 +49,17 @@ export const agentSchema = z
     agent_id: id("agt"),
     operator: address,
     profile_hash: bytes32,
+    /**
+     * The canonical profile, exactly as hashed on chain.
+     *
+     * Stored for the same reason a mission's payload is: a digest cannot answer "what can
+     * this agent do?", and that question decides DAO membership. Without it a worker has
+     * to send a `join_dao` and have it refused to discover it lacks a required
+     * capability. Re-hashed by the indexer, so it is self-verifying rather than trusted.
+     */
+    profile: z.string().min(2),
     registered_at: z.number().int().positive(),
+    /** Projected from `profile`, so a capability query needs no JSON parsing per row. */
     capabilities: z.array(z.string()).default([]),
     dao_ids: z.array(id("dao")).default([]),
   })
@@ -62,6 +72,16 @@ export const daoSchema = z
     creator_agent_id: id("agt"),
     metadata_hash: bytes32,
     rules_hash: bytes32,
+    /** The canonical metadata, as hashed on chain. */
+    metadata: z.string().min(2),
+    /**
+     * The canonical rules, as hashed on chain.
+     *
+     * `required_capabilities` decides who may join and `max_mission_budget_atomic` decides
+     * what may be commissioned. An agent that can see only a digest has to guess at both,
+     * or send a transaction to find out — so the terms travel with the event.
+     */
+    rules: z.string().min(2),
     rules_version: z.number().int().positive(),
     // No member_count here on purpose. Maintaining a counter needs `$inc`, and `$inc` is
     // not idempotent — replaying a block would double it, which is exactly what G3
@@ -86,6 +106,15 @@ export const missionSchema = z
     dao_id: id("dao"),
     creator_agent_id: id("agt"),
     mission_hash: bytes32,
+    /**
+     * The canonical payload, exactly as hashed on chain.
+     *
+     * Stored because a digest alone is not usable: an agent deciding whether to propose
+     * needs the acceptance criteria, and a UI showing a mission needs its text. The
+     * indexer re-hashes this and refuses a mismatch, so the stored content is
+     * self-verifying rather than trusted.
+     */
+    payload: z.string().min(2),
     state: z.enum([
       "DRAFT",
       "OPEN",
@@ -113,6 +142,15 @@ export const proposalSchema = z
     dao_id: id("dao"),
     agent_id: id("agt"),
     proposal_hash: bytes32,
+    /**
+     * The canonical payload, exactly as hashed on chain.
+     *
+     * Stored because a digest alone is not usable: an agent deciding whether to propose
+     * needs the acceptance criteria, and a UI showing a mission needs its text. The
+     * indexer re-hashes this and refuses a mismatch, so the stored content is
+     * self-verifying rather than trusted.
+     */
+    payload: z.string().min(2),
     requested_budget_atomic: atomic,
     team_size: z.number().int().nonnegative(),
     selected: z.boolean().default(false),
@@ -126,6 +164,15 @@ export const mandateSchema = z
     mission_id: id("msn"),
     dao_id: id("dao"),
     mandate_hash: bytes32,
+    /**
+     * The canonical payload, exactly as hashed on chain.
+     *
+     * Stored because a digest alone is not usable: an agent deciding whether to propose
+     * needs the acceptance criteria, and a UI showing a mission needs its text. The
+     * indexer re-hashes this and refuses a mismatch, so the stored content is
+     * self-verifying rather than trusted.
+     */
+    payload: z.string().min(2),
     state: z.enum([
       "CREATED",
       "ACCEPTED",
@@ -165,6 +212,15 @@ export const deliverableSchema = z
     mandate_id: id("mnd"),
     agent_id: id("agt"),
     deliverable_hash: bytes32,
+    /**
+     * The canonical payload, exactly as hashed on chain.
+     *
+     * Stored because a digest alone is not usable: an agent deciding whether to propose
+     * needs the acceptance criteria, and a UI showing a mission needs its text. The
+     * indexer re-hashes this and refuses a mismatch, so the stored content is
+     * self-verifying rather than trusted.
+     */
+    payload: z.string().min(2),
     evidence_count: z.number().int().positive(),
   })
   .strict();

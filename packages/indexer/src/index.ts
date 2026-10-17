@@ -44,7 +44,7 @@ export {
   type Upsert,
 } from "./events.js";
 
-export { Store, ValidationFailed } from "./store.js";
+export { Store, ValidationFailed, storageKey, objectQuery, validateDocument } from "./store.js";
 
 export {
   CHECKPOINT_COLLECTION,

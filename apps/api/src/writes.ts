@@ -36,6 +36,15 @@ export interface WriteEndpoint<S extends z.ZodType = z.ZodType> {
    */
   readonly actsFor: (body: z.infer<S>) => string;
   readonly call: (body: z.infer<S>) => PreparedCall;
+  /**
+   * Authenticated by signature alone, without a registry lookup.
+   *
+   * Exactly one endpoint is: `POST /agents`, which creates the registry entry every other
+   * endpoint's lookup depends on. Gating it on that lookup made onboarding impossible
+   * (BUGS.md BUG-029). `verify/authz.mjs` asserts this flag appears exactly once, so a
+   * second bootstrap endpoint cannot be added quietly.
+   */
+  readonly bootstrap?: boolean;
 }
 
 const endpoint = <S extends z.ZodType>(spec: WriteEndpoint<S>): WriteEndpoint => spec as WriteEndpoint;
@@ -46,6 +55,8 @@ export const WRITE_ENDPOINTS: readonly WriteEndpoint[] = [
     path: "/agents",
     schema: z.object({ agent_id: id("agt"), profile: jsonPayload }).strict(),
     actsFor: (body) => body.agent_id,
+    // The bootstrap. See `bootstrap` on WriteEndpoint for why this one is different.
+    bootstrap: true,
     call: (body) => ({ contract: "registry", method: "register_agent", args: [body.agent_id, body.profile] }),
   }),
   endpoint({

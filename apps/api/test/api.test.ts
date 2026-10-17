@@ -18,13 +18,24 @@ const ADDR = (byte: string) => `0x${byte.repeat(20)}`;
 const AGENT = "agt_01JQ8Z000000000000000000A1";
 const account = privateKeyToAccount(`0x${"11".repeat(32)}`);
 
-async function app(mode: "relay" | "prepare" = "relay") {
+/**
+ * A registration profile that declares the address which signs the request.
+ *
+ * `/agents` is the one bootstrap endpoint, and it authenticates by comparing the recovered
+ * signer to the operator the profile declares -- an agent cannot be in the registry before
+ * it registers, so there is nothing else to compare against. A profile that declares no
+ * operator is therefore a 403, which is what this fixture exists to avoid asserting by
+ * accident.
+ */
+const bootstrapProfile = () => JSON.stringify({ agent_id: AGENT, operator: account.address, name: "Test Agent" });
+
+async function app(mode: "relay" | "prepare" = "relay", sendFails?: Error) {
   server ??= await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const store = await Store.open({ uri: server.getUri(), database: `t${Math.random().toString(36).slice(2, 8)}` });
   await store.ensureIndexes();
   const calls: unknown[] = [];
   const writer = {
-    async send(input: unknown) { calls.push(input); return `0x${"ab".repeat(32)}`; },
+    async send(input: unknown) { calls.push(input); if (sendFails) throw sendFails; return `0x${"ab".repeat(32)}`; },
     async view(input: { method: string; args: readonly unknown[] }) {
       return input.method === "agent_of_address" && String(input.args[0]).toLowerCase() === account.address.toLowerCase()
         ? AGENT
@@ -109,7 +120,7 @@ describe("the API", () => {
   it("accepts a correctly signed write and turns it into a chain call", async () => {
     const { instance, calls, close } = await app();
     try {
-      const payload = await sign({ agent_id: AGENT, profile: '{"a":1}' });
+      const payload = await sign({ agent_id: AGENT, profile: bootstrapProfile() });
       const response = await instance.request("/v1/studionet/agents", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
       });
@@ -124,7 +135,7 @@ describe("the API", () => {
   it("returns calldata and sends nothing in prepare mode", async () => {
     const { instance, calls, close } = await app("prepare");
     try {
-      const payload = await sign({ agent_id: AGENT, profile: '{"a":1}' });
+      const payload = await sign({ agent_id: AGENT, profile: bootstrapProfile() });
       const body = await (await instance.request("/v1/studionet/agents", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
       })).json();
@@ -132,6 +143,36 @@ describe("the API", () => {
       expect(body.tx_hash).toBeUndefined();
       expect(body.prepared.method).toBe("register_agent");
       expect(calls).toHaveLength(0);
+    } finally { await close(); }
+  });
+
+  // A refusal and a failure are opposite advice to a caller, so they are opposite statuses.
+  // Before this was classified, every contract refusal came back 502 and every client's
+  // retry policy treated a permanent refusal as a transient one (BUG-033).
+  it("reports a contract refusal as a 422, not a retryable 502", async () => {
+    const refusal = new Error("[EXPECTED] mission budget 2000000 exceeds the DAO's cap of 1000000");
+    const { instance, close } = await app("relay", refusal);
+    try {
+      const payload = await sign({ agent_id: AGENT, profile: bootstrapProfile() });
+      const response = await instance.request("/v1/studionet/agents", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+      });
+      expect(response.status).toBe(422);
+      const body = await response.json();
+      expect(body.error).toBe("refused");
+      expect(body.detail).toContain("exceeds the DAO's cap");
+    } finally { await close(); }
+  });
+
+  it("still reports a genuine write failure as a 502", async () => {
+    const { instance, close } = await app("relay", new Error("connect ECONNREFUSED 127.0.0.1:9151"));
+    try {
+      const payload = await sign({ agent_id: AGENT, profile: bootstrapProfile() });
+      const response = await instance.request("/v1/studionet/agents", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+      });
+      expect(response.status).toBe(502);
+      expect((await response.json()).error).toBe("upstream_failed");
     } finally { await close(); }
   });
 

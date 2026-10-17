@@ -6,6 +6,7 @@
 // collections and silently drops the other ten would otherwise pass.
 
 import { MongoClient } from "mongodb";
+import { canonicalize, contentHash } from "@wrk/types";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -55,9 +56,64 @@ export const IDS = {
 };
 
 const HASH = (byte) => "0x" + byte.repeat(32);
+
+/**
+ * A content-bearing event's payload and its matching hash.
+ *
+ * The handler re-hashes the payload and refuses a mismatch, so the fixture uses the real
+ * canonicaliser and the real content hash rather than approximating either.
+ */
+const content = (value) => ({ payload: canonicalize(value), hash: contentHash(value) });
 const MANDATE_B32 = HASH("77");
 
 const gl = (name, indexed, blob = {}) => ({ name, source: "genlayer", indexed, blob });
+
+const criteria = () => [
+  { id: "criterion_0", statement: "The adapter posts decisions to Base.", weight_bp: 6000 },
+  { id: "criterion_1", statement: "The vector suite passes.", weight_bp: 4000 },
+];
+const budget = () => ({ asset: "USDC", chain_id: 84532, amount_atomic: "1000000", decimals: 6 });
+
+const missionPayload = (title = "Ship the settlement adapter") => ({
+  schema_version: 1, mission_id: IDS.mission, dao_id: IDS.dao, creator_agent_id: IDS.creator,
+  title, outcome_statement: "A settlement adapter that posts decisions to Base.",
+  acceptance_criteria: criteria(), budget: budget(), deadline_unix: 1900000000,
+  evidence_requirements: ["source_repository", "test_output"], allow_teams: false, max_team_size: 1,
+});
+
+const proposalPayload = () => ({
+  schema_version: 1, proposal_id: IDS.proposal, mission_id: IDS.mission, dao_id: IDS.dao,
+  agent_id: IDS.worker, capabilities: ["coding"],
+  proposed_strategy: "Write the adapter, prove it against the frozen vectors.",
+  execution_plan: ["Write the adapter.", "Prove it against the vectors."],
+  deliverables: ["The adapter source.", "A passing test run."],
+  evidence_plan: ["Link the repository.", "Attach the test output."],
+  estimated_duration_seconds: 86400, requested_budget: budget(), team_members: [],
+  submitted_at_unix: 1800000000,
+});
+
+const mandatePayload = () => ({
+  schema_version: 1, mandate_id: IDS.mandate, dao_id: IDS.dao, mission_id: IDS.mission,
+  creator_agent_id: IDS.creator, workers: [{ agent_id: IDS.worker, share_bp: 10000 }],
+  objective: "Deliver the settlement adapter.", deliverables: ["Deliverable 0.", "Deliverable 1."],
+  budget: budget(), deadline_unix: 1900000000, acceptance_criteria: criteria(),
+  evidence_requirements: ["source_repository", "test_output"],
+  proposal_hash: contentHash(proposalPayload()), selection_decision_hash: "0x" + "51".repeat(32),
+  created_at_unix: 1800000000,
+});
+
+const deliverablePayload = () => ({
+  schema_version: 1, deliverable_id: IDS.deliverable, mandate_id: IDS.mandate,
+  worker_agent_id: IDS.worker, title: "Settlement adapter",
+  summary: "The adapter, with the vector suite passing.", satisfies_indices: [0, 1],
+  evidence: [{
+    evidence_id: IDS.evidence, mandate_id: IDS.mandate, worker_agent_id: IDS.worker,
+    type: "source_repository", uri: "https://example.com/repo", content_hash: "0x" + "ab".repeat(32),
+    mime_type: "text/plain", description: "The adapter source at the submitted commit.",
+    created_at_unix: 1800000000,
+  }],
+  submitted_at_unix: 1800000000,
+});
 const base = (name, indexed, blob = {}) => ({ name, source: "base", indexed, blob });
 
 /**
@@ -91,32 +147,30 @@ export function genlayerBlocks() {
       gl("MemberJoined", { agent_id: IDS.worker, dao_id: IDS.dao }, { mode: "joined" }),
     ],
     [
-      gl("MissionCreated", { mission_id: IDS.mission }, {
-        dao_id: IDS.dao,
-        creator_agent_id: IDS.creator,
-        mission_hash: HASH("31"),
-        rules_version: 1,
-        budget_atomic: "1000000",
-        deadline_unix: 1900000000,
-        state: "DRAFT",
-      }),
-      gl("MissionUpdated", { mission_id: IDS.mission }, {
-        mission_hash: HASH("32"),
-        version: 2,
-        budget_atomic: "1000000",
-        deadline_unix: 1900000000,
-      }),
+      (() => {
+        const c = content(missionPayload());
+        return gl("MissionCreated", { mission_id: IDS.mission }, {
+          dao_id: IDS.dao, creator_agent_id: IDS.creator, mission_hash: c.hash, payload: c.payload,
+          rules_version: 1, budget_atomic: "1000000", deadline_unix: 1900000000, state: "DRAFT",
+        });
+      })(),
+      (() => {
+        const c = content(missionPayload("Revised title"));
+        return gl("MissionUpdated", { mission_id: IDS.mission }, {
+          mission_hash: c.hash, payload: c.payload, version: 2,
+          budget_atomic: "1000000", deadline_unix: 1900000000,
+        });
+      })(),
       gl("MissionStateChanged", { mission_id: IDS.mission }, { state: "OPEN", previous: "DRAFT" }),
     ],
     [
-      gl("ProposalSubmitted", { proposal_id: IDS.proposal }, {
-        mission_id: IDS.mission,
-        dao_id: IDS.dao,
-        agent_id: IDS.worker,
-        proposal_hash: HASH("41"),
-        requested_budget_atomic: "1000000",
-        team_size: 0,
-      }),
+      (() => {
+        const c = content(proposalPayload());
+        return gl("ProposalSubmitted", { proposal_id: IDS.proposal }, {
+          mission_id: IDS.mission, dao_id: IDS.dao, agent_id: IDS.worker,
+          proposal_hash: c.hash, payload: c.payload, requested_budget_atomic: "1000000", team_size: 0,
+        });
+      })(),
       gl("MissionStateChanged", { mission_id: IDS.mission }, { state: "PROPOSALS_CLOSED", previous: "OPEN" }),
       gl("MissionStateChanged", { mission_id: IDS.mission }, { state: "SELECTING", previous: "PROPOSALS_CLOSED" }),
     ],
@@ -135,18 +189,14 @@ export function genlayerBlocks() {
       gl("MissionStateChanged", { mission_id: IDS.mission }, { state: "SELECTED", previous: "SELECTING" }),
     ],
     [
-      gl("MandateCreated", { mandate_id: IDS.mandate }, {
-        mission_id: IDS.mission,
-        dao_id: IDS.dao,
-        mandate_hash: HASH("61"),
-        rules_version: 1,
-        proposal_hash: HASH("41"),
-        selection_decision_hash: HASH("51"),
-        budget_atomic: "1000000",
-        deadline_unix: 1900000000,
-        worker_count: 1,
-        state: "CREATED",
-      }),
+      (() => {
+        const c = content(mandatePayload());
+        return gl("MandateCreated", { mandate_id: IDS.mandate }, {
+          mission_id: IDS.mission, dao_id: IDS.dao, mandate_hash: c.hash, payload: c.payload,
+          rules_version: 1, proposal_hash: contentHash(proposalPayload()), selection_decision_hash: HASH("51"),
+          budget_atomic: "1000000", deadline_unix: 1900000000, worker_count: 1, state: "CREATED",
+        });
+      })(),
       gl("MissionStateChanged", { mission_id: IDS.mission }, { state: "MANDATED", previous: "SELECTED" }),
       gl("MandateAccepted", { agent_id: IDS.worker, mandate_id: IDS.mandate }, { accepted: 1, total: 1 }),
       gl("MandateStateChanged", { mandate_id: IDS.mandate }, { state: "ACCEPTED", previous: "CREATED" }),
@@ -165,12 +215,13 @@ export function genlayerBlocks() {
         uri: "https://example.com/repo",
         content_hash: HASH("ab"),
       }),
-      gl("DeliverableSubmitted", { deliverable_id: IDS.deliverable }, {
-        mandate_id: IDS.mandate,
-        agent_id: IDS.worker,
-        deliverable_hash: HASH("71"),
-        evidence_count: 1,
-      }),
+      (() => {
+        const c = content(deliverablePayload());
+        return gl("DeliverableSubmitted", { deliverable_id: IDS.deliverable }, {
+          mandate_id: IDS.mandate, agent_id: IDS.worker, deliverable_hash: c.hash,
+          payload: c.payload, evidence_count: 1,
+        });
+      })(),
       gl("MandateStateChanged", { mandate_id: IDS.mandate }, { state: "SUBMITTED", previous: "IN_PROGRESS" }),
     ],
     [

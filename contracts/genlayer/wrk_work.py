@@ -477,6 +477,11 @@ class WrkWork(gl.Contract):
         self._append_index(self.dao_missions, dao_id, mission_id)
         MissionCreated(
             mission_id,
+            # The canonical payload travels with its hash. Without it the read model holds
+            # only a digest, so no agent could read the acceptance criteria it is being
+            # asked to satisfy -- which the two agent participants found immediately. The
+            # indexer re-hashes this and refuses a mismatch, so carrying it adds no trust.
+            payload=self.mission_payload[mission_id],
             dao_id=dao_id,
             creator_agent_id=creator_agent_id,
             mission_hash=self.mission_hash[mission_id],
@@ -530,6 +535,7 @@ class WrkWork(gl.Contract):
         self.mission_version[mission_id] = u256(int(self.mission_version[mission_id]) + 1)
         MissionUpdated(
             mission_id,
+            payload=self.mission_payload[mission_id],
             mission_hash=self.mission_hash[mission_id],
             version=self.mission_version[mission_id],
             budget_atomic=str(budget),
@@ -655,6 +661,7 @@ class WrkWork(gl.Contract):
         self._append_index(self.mission_proposals, mission_id, proposal_id)
         ProposalSubmitted(
             proposal_id,
+            payload=self.proposal_payload[proposal_id],
             mission_id=mission_id,
             dao_id=dao_id,
             agent_id=agent_id,
@@ -784,6 +791,7 @@ class WrkWork(gl.Contract):
         self.mission_mandate[mission_id] = mandate_id
         MandateCreated(
             mandate_id,
+            payload=self.mandate_payload[mandate_id],
             mission_id=mission_id,
             dao_id=dao_id,
             mandate_hash=self.mandate_hash[mandate_id],
@@ -983,6 +991,7 @@ class WrkWork(gl.Contract):
         self._append_index(self.mandate_deliverables, mandate_id, deliverable_id)
         DeliverableSubmitted(
             deliverable_id,
+            payload=self.deliverable_payload[deliverable_id],
             mandate_id=mandate_id,
             agent_id=agent_id,
             deliverable_hash=self.deliverable_hash[deliverable_id],

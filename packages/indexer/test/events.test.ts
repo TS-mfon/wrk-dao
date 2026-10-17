@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HANDLERS, coveredEvents, handlerFor, project, sequenceOf } from "../src/events.js";
-import { HASH, ulid, ref } from "./helpers.js";
+import { HASH, ulid, ref, profileFields } from "./helpers.js";
 
 describe("the event catalogue", () => {
   it("refuses an event it does not know, rather than skipping it", () => {
@@ -35,7 +35,7 @@ describe("the event catalogue", () => {
       name: "AgentRegistered",
       source: "genlayer",
       indexed: { agent_id: ulid("agt", "A1") },
-      blob: { operator: `0x${"a1".repeat(20)}`, profile_hash: HASH("11"), registered_at: 1800000000 },
+      blob: { operator: `0x${"a1".repeat(20)}`, ...profileFields(ulid("agt", "A1"), `0x${"a1".repeat(20)}`), registered_at: 1800000000 },
       ref: ref(42),
     });
     expect(upsert!.set.updated_at).toBe(42);
@@ -46,11 +46,11 @@ describe("the event catalogue", () => {
       name: "AgentRegistered",
       source: "genlayer",
       indexed: { agent_id: ulid("agt", "A1") },
-      blob: { operator: `0x${"A1".repeat(20)}`, profile_hash: HASH("11").toUpperCase().replace("0X", "0x"), registered_at: 1800000000 },
+      blob: { operator: `0x${"A1".repeat(20)}`, ...profileFields(ulid("agt", "A1"), `0x${"A1".repeat(20)}`), registered_at: 1800000000 },
       ref: ref(1),
     });
     expect(upsert!.set.operator).toBe(`0x${"a1".repeat(20)}`);
-    expect(String(upsert!.set.profile_hash)).toBe(HASH("11"));
+    expect(String(upsert!.set.profile_hash)).toBe(profileFields(ulid("agt", "A1"), `0x${"A1".repeat(20)}`).profile_hash);
   });
 
   it("keys a membership on the pair, so the same membership is one document", () => {

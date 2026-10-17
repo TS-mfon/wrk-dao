@@ -3,7 +3,7 @@ import { ReplaySource } from "../src/sources/replay.js";
 import { indexOnce, indexToTip } from "../src/indexer.js";
 import { loadCheckpoint } from "../src/checkpoint.js";
 import { digestAll, diffDigests } from "../src/digest.js";
-import { freshStore, stopMongo, HASH, operatorFor, ulid } from "./helpers.js";
+import { freshStore, stopMongo, HASH, operatorFor, ulid, profileFields } from "./helpers.js";
 
 afterAll(stopMongo);
 
@@ -16,7 +16,7 @@ const registration = (tag: string, variant = "a") => ({
     // Derived per (tag, variant): each agent needs its own operator, and a reorg
     // replacement needs a different one from the block it replaces.
     operator: operatorFor(`${tag}:${variant}`),
-    profile_hash: HASH("11"),
+    ...profileFields(ulid("agt", tag), operatorFor(`${tag}:${variant}`)),
     registered_at: 1800000000,
   },
 });

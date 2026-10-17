@@ -15,6 +15,7 @@
  * so `verify/events.mjs` can exercise the whole catalogue without one.
  */
 
+import { contentHash } from "@wrk/types";
 import type { ChainRef } from "./schemas.js";
 import type { CollectionName } from "./collections.js";
 
@@ -66,6 +67,38 @@ const str = (value: unknown): string => {
 };
 const lower = (value: unknown): string => str(value).toLowerCase();
 
+/**
+ * A canonical payload, checked against the digest the same event carries.
+ *
+ * The check is what makes storing the content safe: an event claiming a payload that does
+ * not hash to its own stated hash is refused, so the read model cannot be fed text that
+ * disagrees with what the contract committed to. Re-hashing costs a keccak per document
+ * and removes the need to trust the blob.
+ */
+const payloadMatching = (value: unknown, expectedHash: unknown, label: string): string => {
+  const canonical = str(value);
+  const actual = contentHash(JSON.parse(canonical));
+  const expected = str(expectedHash).toLowerCase();
+  if (actual !== expected) {
+    throw new Error(
+      `${label}: the payload hashes to ${actual} but the event states ${expected}; refusing to store content that disagrees with the chain`,
+    );
+  }
+  return canonical;
+};
+
+/**
+ * The capability ids out of a verified agent profile.
+ *
+ * Kept as a projection rather than asking readers to parse the profile, because "which
+ * agents can do X?" is a query an agent assembling a team runs constantly, and the answer
+ * gates DAO membership.
+ */
+const capabilitiesOf = (profile: string): string[] => {
+  const parsed = JSON.parse(profile) as { capabilities?: Array<{ capability_id?: unknown }> };
+  return (parsed.capabilities ?? []).map((capability) => str(capability.capability_id));
+};
+
 /** `block * 1e6 + log_index`: a monotonic order for a chain, stable across a rebuild. */
 export function sequenceOf(ref: ChainRef): number {
   return ref.block * 1_000_000 + ref.log_index;
@@ -93,28 +126,45 @@ const handler = (
 // ── wrk_registry ────────────────────────────────────────────────────────────
 
 const registryHandlers: EventHandler[] = [
-  handler("AgentRegistered", "genlayer", "agents", true, (e) => [
-    {
-      collection: "agents",
-      id: str(e.indexed.agent_id),
-      set: {
-        ...provenance(e),
-        agent_id: str(e.indexed.agent_id),
-        operator: lower(e.blob.operator),
-        profile_hash: lower(e.blob.profile_hash),
-        registered_at: num(e.blob.registered_at),
+  handler("AgentRegistered", "genlayer", "agents", true, (e) => {
+    const profile = payloadMatching(e.blob.profile, e.blob.profile_hash, "AgentRegistered");
+    return [
+      {
+        collection: "agents",
+        id: str(e.indexed.agent_id),
+        set: {
+          ...provenance(e),
+          agent_id: str(e.indexed.agent_id),
+          operator: lower(e.blob.operator),
+          profile_hash: lower(e.blob.profile_hash),
+          profile,
+          // Derived from the profile the hash check just verified, so a capability query
+          // is answerable without parsing JSON on every read. `$set` of the whole array
+          // rather than `$addToSet`, because a profile update that drops a capability
+          // must drop it here too.
+          capabilities: capabilitiesOf(profile),
+          registered_at: num(e.blob.registered_at),
+        },
+        setOnInsert: { dao_ids: [] },
       },
-      setOnInsert: { capabilities: [], dao_ids: [] },
-    },
-  ]),
+    ];
+  }),
 
-  handler("AgentProfileUpdated", "genlayer", "agents", false, (e) => [
-    {
-      collection: "agents",
-      id: str(e.indexed.agent_id),
-      set: { ...provenance(e), profile_hash: lower(e.blob.profile_hash) },
-    },
-  ]),
+  handler("AgentProfileUpdated", "genlayer", "agents", false, (e) => {
+    const profile = payloadMatching(e.blob.profile, e.blob.profile_hash, "AgentProfileUpdated");
+    return [
+      {
+        collection: "agents",
+        id: str(e.indexed.agent_id),
+        set: {
+          ...provenance(e),
+          profile_hash: lower(e.blob.profile_hash),
+          profile,
+          capabilities: capabilitiesOf(profile),
+        },
+      },
+    ];
+  }),
 
   handler("DaoCreated", "genlayer", "daos", true, (e) => [
     {
@@ -126,6 +176,8 @@ const registryHandlers: EventHandler[] = [
         creator_agent_id: str(e.blob.creator_agent_id),
         metadata_hash: lower(e.blob.metadata_hash),
         rules_hash: lower(e.blob.rules_hash),
+        metadata: payloadMatching(e.blob.metadata, e.blob.metadata_hash, "DaoCreated.metadata"),
+        rules: payloadMatching(e.blob.rules, e.blob.rules_hash, "DaoCreated.rules"),
         rules_version: num(e.blob.rules_version),
       },
     },
@@ -138,6 +190,7 @@ const registryHandlers: EventHandler[] = [
       set: {
         ...provenance(e),
         rules_hash: lower(e.blob.rules_hash),
+        rules: payloadMatching(e.blob.rules, e.blob.rules_hash, "DaoRulesUpdated"),
         rules_version: num(e.blob.rules_version),
       },
     },
@@ -182,6 +235,7 @@ const workHandlers: EventHandler[] = [
         dao_id: str(e.blob.dao_id),
         creator_agent_id: str(e.blob.creator_agent_id),
         mission_hash: lower(e.blob.mission_hash),
+        payload: payloadMatching(e.blob.payload, e.blob.mission_hash, "MissionCreated"),
         state: str(e.blob.state),
         rules_version: num(e.blob.rules_version),
         budget_atomic: str(e.blob.budget_atomic),
@@ -199,6 +253,7 @@ const workHandlers: EventHandler[] = [
       set: {
         ...provenance(e),
         mission_hash: lower(e.blob.mission_hash),
+        payload: payloadMatching(e.blob.payload, e.blob.mission_hash, "MissionUpdated"),
         version: num(e.blob.version),
         budget_atomic: str(e.blob.budget_atomic),
         deadline_unix: num(e.blob.deadline_unix),
@@ -225,6 +280,7 @@ const workHandlers: EventHandler[] = [
         dao_id: str(e.blob.dao_id),
         agent_id: str(e.blob.agent_id),
         proposal_hash: lower(e.blob.proposal_hash),
+        payload: payloadMatching(e.blob.payload, e.blob.proposal_hash, "ProposalSubmitted"),
         requested_budget_atomic: str(e.blob.requested_budget_atomic),
         team_size: num(e.blob.team_size),
       },
@@ -259,6 +315,7 @@ const workHandlers: EventHandler[] = [
         mission_id: str(e.blob.mission_id),
         dao_id: str(e.blob.dao_id),
         mandate_hash: lower(e.blob.mandate_hash),
+        payload: payloadMatching(e.blob.payload, e.blob.mandate_hash, "MandateCreated"),
         state: str(e.blob.state),
         rules_version: num(e.blob.rules_version),
         proposal_hash: lower(e.blob.proposal_hash),
@@ -303,6 +360,7 @@ const workHandlers: EventHandler[] = [
         mandate_id: str(e.blob.mandate_id),
         agent_id: str(e.blob.agent_id),
         deliverable_hash: lower(e.blob.deliverable_hash),
+        payload: payloadMatching(e.blob.payload, e.blob.deliverable_hash, "DeliverableSubmitted"),
         evidence_count: num(e.blob.evidence_count),
       },
     },

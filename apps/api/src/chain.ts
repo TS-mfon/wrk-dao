@@ -49,6 +49,38 @@ export class ChainWriteFailed extends Error {
   }
 }
 
+/**
+ * The contract refused the call, deliberately.
+ *
+ * GenLayer's convention is that a `gl.vm.UserError` prefixed `[EXPECTED]` is a deterministic
+ * refusal the contract author intended — a budget over the DAO's cap, a transition the
+ * state machine does not have, a mandate whose workers are not the ones selected. It is
+ * separate from `ChainWriteFailed` because the two deserve opposite advice: a failed write
+ * might land on a retry, and a refusal never will. Collapsing them into one 502 tells every
+ * client to retry a permanent refusal.
+ */
+export class ChainRefused extends Error {
+  constructor(readonly detail: string) {
+    super(detail);
+    this.name = "ChainRefused";
+  }
+}
+
+/** The marker GenVM puts on a deliberate, deterministic refusal. */
+const REFUSAL_MARKER = "[EXPECTED]";
+
+/**
+ * Whether a writer's error was the contract refusing rather than the write failing.
+ *
+ * Reads the marker, and also an `expected` flag, so a writer that classifies for itself
+ * does not have to round-trip through a string.
+ */
+export function isRefusal(error: unknown): boolean {
+  if (error && typeof error === "object" && (error as { expected?: unknown }).expected === true) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(REFUSAL_MARKER);
+}
+
 /** The addresses of the four ICs on one network. */
 export const deploymentSchema = z
   .object({
@@ -133,7 +165,11 @@ export class ChainWrites {
       });
       return { mode: "relay", tx_hash: txHash };
     } catch (error) {
-      throw new ChainWriteFailed(error instanceof Error ? error.message : String(error));
+      const detail = error instanceof Error ? error.message : String(error);
+      // A refusal and a failure are not the same event and must not become the same
+      // response: see `ChainRefused`.
+      if (isRefusal(error)) throw new ChainRefused(detail);
+      throw new ChainWriteFailed(detail);
     }
   }
 

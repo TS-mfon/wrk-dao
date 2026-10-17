@@ -243,6 +243,12 @@ class WrkRegistry(gl.Contract):
             agent_id,
             operator=sender,
             profile_hash=self.agent_profile_hash[agent_id],
+            # The canonical profile travels with the event, not just its digest. A digest
+            # alone cannot answer "what can this agent do?", and that question gates DAO
+            # membership: without the profile a worker has to send a `join_dao` and have it
+            # refused to learn it lacks a required capability. The indexer re-hashes this
+            # and refuses a mismatch, so it stays self-verifying.
+            profile=canonical,
             registered_at=u256(_now()),
         ).emit()
         return self.agent_profile_hash[agent_id]
@@ -269,7 +275,11 @@ class WrkRegistry(gl.Contract):
 
         self.agent_profile[agent_id] = canonicalize(profile)
         self.agent_profile_hash[agent_id] = content_hash(profile)
-        AgentProfileUpdated(agent_id, profile_hash=self.agent_profile_hash[agent_id]).emit()
+        AgentProfileUpdated(
+            agent_id,
+            profile_hash=self.agent_profile_hash[agent_id],
+            profile=self.agent_profile[agent_id],
+        ).emit()
         return self.agent_profile_hash[agent_id]
 
     # ── DAOs: C2, C3, C4, C5 ────────────────────────────────────────────────
@@ -333,6 +343,13 @@ class WrkRegistry(gl.Contract):
             creator_agent_id=creator_agent_id,
             metadata_hash=self.dao_metadata_hash[dao_id],
             rules_hash=self.dao_rules_hash[dao_id],
+            # Both canonical payloads travel with the event. The rules in particular are
+            # not optional reading: `required_capabilities` decides who may join,
+            # `max_mission_budget_atomic` decides what may be commissioned, and an agent
+            # that can only see a digest has to guess at both or send a transaction to
+            # find out. Each is re-hashed by the indexer and refused on a mismatch.
+            metadata=self.dao_metadata[dao_id],
+            rules=self.dao_rules[dao_id],
             rules_version=u256(1),
         ).emit()
         # The creator's membership is a membership like any other, so it emits like any
@@ -374,6 +391,7 @@ class WrkRegistry(gl.Contract):
         DaoRulesUpdated(
             dao_id,
             rules_hash=self.dao_rules_hash[dao_id],
+            rules=self.dao_rules[dao_id],
             rules_version=u256(rules["version"]),
         ).emit()
         return self.dao_rules_hash[dao_id]

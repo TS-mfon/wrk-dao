@@ -24,6 +24,26 @@ import {
 import type { Upsert } from "./events.js";
 import type { MongoConfig } from "./config.js";
 
+export const storageKey = (chain: number, id: string): string => `${chain}:${id}`;
+
+/** Includes legacy keys while an existing read model is being rebuilt. */
+export function objectQuery(id: string, chain?: number): Document {
+  if (chain !== undefined) {
+    return { _id: { $in: [storageKey(chain, id), id] }, "chain_ref.chain": chain };
+  }
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return { _id: { $regex: `^(?:[0-9]+:)?${escaped}$` } };
+}
+
+export function validateDocument(name: CollectionName, document: Document): Record<string, unknown> {
+  const parsed = collectionSpec(name).schema.safeParse(document);
+  if (!parsed.success) {
+    throw new ValidationFailed(name, String(document._id), "read",
+      parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
+  }
+  return parsed.data as Record<string, unknown>;
+}
+
 export class ValidationFailed extends Error {
   constructor(
     readonly collection: string,
@@ -68,7 +88,16 @@ export class Store {
       // entry to its own literal type, on which an absent optional field does not exist.
       const spec = collectionSpec(name);
       for (const index of spec.indexes) {
-        await this.collection(name).createIndex(index.keys, {
+        const keys = name === "indexer_checkpoints" ? index.keys : { "chain_ref.chain": 1 as const, ...index.keys };
+        const indexes = await this.collection(name).listIndexes().toArray().catch((error: unknown) => {
+          if (error && typeof error === "object" && "code" in error && error.code === 26) return [];
+          throw error;
+        });
+        const existing = indexes.find((candidate) => candidate.name === index.name);
+        if (existing && JSON.stringify(existing.key) !== JSON.stringify(keys)) {
+          await this.collection(name).dropIndex(index.name);
+        }
+        await this.collection(name).createIndex(keys, {
           name: index.name,
           unique: index.unique ?? false,
         });
@@ -86,13 +115,20 @@ export class Store {
   async apply(upsert: Upsert): Promise<void> {
     const spec = collectionSpec(upsert.collection);
     const collection = this.collection(upsert.collection);
-    const existing = await collection.findOne({ _id: upsert.id as never });
+    const chain = (upsert.set.chain_ref as { chain?: number } | undefined)?.chain;
+    const matches = await collection.find(objectQuery(upsert.id, chain)).limit(2).toArray();
+    if (matches.length > 1) throw new Error(`chain is required for ambiguous ${upsert.collection}/${upsert.id}`);
+    const existing = matches[0];
+    const resolvedChain = chain ?? (existing?.chain_ref as { chain?: number } | undefined)?.chain;
+    const key = existing?._id ?? (resolvedChain === undefined ? upsert.id : storageKey(resolvedChain, upsert.id));
+    // A crashed indexer can replay an old range; do not regress newer object state.
+    if (existing && typeof upsert.set.seq === "number" && Number(existing.seq) > upsert.set.seq) return;
 
     const merged: Record<string, unknown> = {
       ...(existing ?? {}),
       ...(existing ? {} : (upsert.setOnInsert ?? {})),
       ...upsert.set,
-      _id: upsert.id,
+      _id: key,
     };
 
     for (const [field, value] of Object.entries(upsert.addToSet ?? {})) {
@@ -114,16 +150,20 @@ export class Store {
     // unvalidated field survive from the existing document into the stored one.
     const document = parsed.data as Record<string, unknown>;
     const { _id, ...fields } = document;
-    await collection.updateOne(
-      { _id: upsert.id as never },
+    const guard = existing ? { _id: key, seq: existing.seq } : { _id: key };
+    const result = await collection.updateOne(
+      guard as never,
       { $set: fields as Document },
-      { upsert: true },
+      { upsert: !existing },
     );
+    if (existing && result.matchedCount === 0) await this.apply(upsert);
   }
 
   /** Reads one document, validating it. An invalid stored document is an error. */
-  async read(name: CollectionName, id: string): Promise<Record<string, unknown> | null> {
-    const found = await this.collection(name).findOne({ _id: id as never });
+  async read(name: CollectionName, id: string, chain?: number): Promise<Record<string, unknown> | null> {
+    const matches = await this.collection(name).find(objectQuery(id, chain)).limit(2).toArray();
+    if (matches.length > 1) throw new Error(`chain is required for ambiguous ${name}/${id}`);
+    const found = matches[0];
     if (!found) return null;
     const parsed = collectionSpec(name).schema.safeParse(found);
     if (!parsed.success) {

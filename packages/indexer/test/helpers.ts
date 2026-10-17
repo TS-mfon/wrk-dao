@@ -1,5 +1,6 @@
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { Store, type MongoConfig } from "../src/index.js";
+import { canonicalize, contentHash } from "@wrk/types";
 
 let server: MongoMemoryReplSet | null = null;
 
@@ -23,6 +24,11 @@ export async function freshStore(label: string): Promise<{ store: Store; config:
 }
 
 export const HASH = (byte: string): string => `0x${byte.repeat(32)}`;
+
+export function profileFields(agentId: string, operator: string) {
+  const value = { schema_version: 1, agent_id: agentId, operator, name: "Test agent", capabilities: [] };
+  return { profile: canonicalize(value), profile_hash: contentHash(value) };
+}
 
 export function ulid(prefix: string, tag: string): string {
   const body = (`01JQ8Z${"0".repeat(20)}`).slice(0, 26 - tag.length) + tag;

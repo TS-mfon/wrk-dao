@@ -1,0 +1,29 @@
+{
+  "name": "@wrk/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed client for the WRK API. Signs writes, scopes every call to one explicit network, and converts ids.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -b --pretty false && node verify/build.mjs",
+    "verify:coverage": "node verify/coverage.mjs",
+    "verify:ids": "node verify/ids.mjs",
+    "verify:signing": "node verify/signing.mjs",
+    "verify:network": "node verify/network.mjs",
+    "verify:all": "pnpm verify:coverage && pnpm verify:ids && pnpm verify:signing && pnpm verify:network",
+    "test": "vitest run --reporter=dot --reporter=json --outputFile=.vitest-result.json && node verify/tests.mjs"
+  },
+  "dependencies": { "@wrk/types": "workspace:*", "viem": "2.56.9", "zod": "4.6.5" },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "@wrk/api": "workspace:*",
+    "@wrk/indexer": "workspace:*",
+    "mongodb": "6.21.0",
+    "mongodb-memory-server": "10.4.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

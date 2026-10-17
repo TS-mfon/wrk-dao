@@ -16,9 +16,9 @@ import {
   type AgentDirectory,
   type NonceLog,
 } from "./auth.js";
-import { ChainWriteFailed, type ChainWrites } from "./chain.js";
+import { ChainRefused, ChainWriteFailed, type ChainWrites } from "./chain.js";
 import { UnknownNetwork, resolveNetwork, resolveWritableNetwork, NETWORK_NAMES } from "./networks.js";
-import { badRequest, fromZod, notFound, unauthorized, upstream } from "./problem.js";
+import { badRequest, fromZod, notFound, refused, unauthorized, upstream } from "./problem.js";
 import type { ReadModel } from "./readmodel.js";
 import { WRITE_ENDPOINTS } from "./writes.js";
 
@@ -52,12 +52,16 @@ const READ_ROUTES: ReadonlyArray<{
 
 export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
-  const nonces = deps.nonces ?? new MemoryNonceLog();
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
+  const nonces = deps.nonces ?? new MemoryNonceLog(now);
 
   app.onError((error, context) => {
     if (error instanceof UnknownNetwork) return context.json(badRequest(error.message), 400);
     if (error instanceof AuthFailed) return context.json(unauthorized(error.reason), error.status);
+    // 422, not 502: the contract refused a well-formed request, so the caller has to change
+    // the request rather than send it again. A 5xx would tell every client to retry a call
+    // that can never succeed, which for a relaying API means a transaction per attempt.
+    if (error instanceof ChainRefused) return context.json(refused(error.detail), 422);
     if (error instanceof ChainWriteFailed) return context.json(upstream(error.detail), 502);
     return context.json(
       { error: "internal", detail: error instanceof Error ? error.message : String(error) },
@@ -87,7 +91,7 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get("/v1/:network/health", async (context) => {
     const network = resolveNetwork(context.req.param("network"));
-    return context.json(await deps.reads.health(network.name as ChainName));
+    return context.json(await deps.reads.health(network.name as ChainName, now()));
   });
 
   app.get("/v1/:network/settlement-windows", async (context) => {
@@ -106,8 +110,8 @@ export function createApp(deps: AppDeps): Hono {
       }
       const limit = Number(context.req.query("limit") ?? 50);
       const offset = Number(context.req.query("offset") ?? 0);
-      if (!Number.isFinite(limit) || !Number.isFinite(offset) || limit < 1 || offset < 0) {
-        return context.json(badRequest("limit must be >= 1 and offset >= 0"), 400);
+      if (!Number.isSafeInteger(limit) || !Number.isSafeInteger(offset) || limit < 1 || offset < 0) {
+        return context.json(badRequest("limit must be a positive safe integer and offset a nonnegative safe integer"), 400);
       }
       const page = await deps.reads.list(
         network.name as ChainName,
@@ -190,6 +194,7 @@ export function createApp(deps: AppDeps): Hono {
         directory: deps.directory,
         nonces,
         now: now(),
+        ...(endpoint.bootstrap ? { bootstrap: true } : {}),
       });
 
       const submitted = await deps.writes.submit({

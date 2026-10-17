@@ -26,6 +26,7 @@
     "gates": "node /home/sudodave/.claude/skills/unlazy/scripts/gate-check.mjs --scope wrk"
   },
   "devDependencies": {
+    "genlayer-js": "1.1.8",
     "@types/node": "26.6.3",
     "tsx": "4.23.15",
     "typescript": "7.0.2",

@@ -30,6 +30,11 @@ function bodyFor(endpoint, actingAgent) {
     rules: '{"schema_version":1}',
     payload: '{"schema_version":1}',
   };
+  if ("profile" in (endpoint.schema.shape ?? {})) {
+    // The bootstrap endpoint binds the signature to the operator the profile declares, so
+    // the fixture has to declare the signer's own address.
+    values.profile = JSON.stringify({ schema_version: 1, operator: ACCOUNTS.creator.address.toLowerCase() });
+  }
   const shape = endpoint.schema.shape ?? {};
   const body = {};
   for (const key of Object.keys(shape)) {
@@ -58,7 +63,8 @@ try {
     const unsigned = await post(app, url, body);
     if (unsigned.status === 202) problems.push(`${endpoint.path}: accepted an unsigned request`);
 
-    // 2. The worker signs a call that acts for the creator. I7 refuses it.
+    // 2. The worker signs a call that acts for the creator. I7 refuses it, on every
+    //    endpoint including the bootstrap: the envelope's agent must be the one acted for.
     const impersonation = await signed(ACCOUNTS.worker, {
       network: "studionet",
       path,
@@ -72,7 +78,12 @@ try {
       problems.push(`${endpoint.path}: impersonation returned ${impersonated.status}, expected 401/403`);
     }
 
-    // 3. The right agent id, signed by the wrong key.
+    // 3. The right agent id, signed by a key the registry does not know.
+    //
+    // Refused everywhere except the bootstrap endpoint, where it MUST be accepted: that
+    // call is what creates the registry entry, so requiring one first makes onboarding
+    // impossible. The contract still binds the profile's operator to the sender, so a
+    // bootstrap signature can only register the signer under an unclaimed id.
     const forged = await signed(ACCOUNTS.stranger, {
       network: "studionet",
       path,
@@ -81,7 +92,7 @@ try {
     });
     const forgedResponse = await post(app, url, forged);
     if (forgedResponse.status === 202) {
-      problems.push(`${endpoint.path}: a signature from an unregistered key was accepted`);
+      problems.push(`${endpoint.path}: a signature from the wrong key was accepted`);
     }
 
     // 4. A signature for a different network must not work here.
@@ -142,26 +153,67 @@ try {
     problems.push("an expired signature was accepted");
   }
 
-  // 9. An address that controls no agent is refused even with a valid signature.
+  // 9. An address that controls no agent is refused on a NON-bootstrap endpoint, even
+  //    with a valid signature.
   const nobody = await harness({ registry: {} });
   try {
     const orphan = await signed(ACCOUNTS.creator, {
       network: "studionet",
-      path: "/v1/:network/agents",
+      path: "/v1/:network/missions/:missionId/open",
       agentId: AGENTS.creator,
-      body: { agent_id: AGENTS.creator, profile: '{"schema_version":1}' },
+      body: { mission_id: "msn_01JQ8Z000000000000000000M1", creator_agent_id: AGENTS.creator },
     });
-    const response = await post(nobody.app, "/v1/studionet/agents", orphan);
+    const response = await post(nobody.app, "/v1/studionet/missions/x/open", orphan);
     if (response.status === 202) {
-      problems.push("a signature from an address that controls no agent was accepted");
+      problems.push("a signature from an address that controls no agent was accepted on a non-bootstrap endpoint");
     }
   } finally {
     await nobody.stop();
   }
 
+  // 10. Onboarding works for a key the registry has never seen, which is the whole
+  //     reason the bootstrap exists -- and it still requires the profile to name that key.
+  const fresh = await harness({ registry: {} });
+  try {
+    const operator = ACCOUNTS.stranger.address.toLowerCase();
+    const body = {
+      agent_id: AGENTS.worker,
+      profile: JSON.stringify({ schema_version: 1, operator }),
+    };
+    const onboard = await signed(ACCOUNTS.stranger, {
+      network: "studionet", path: "/v1/:network/agents", agentId: AGENTS.worker, body,
+    });
+    const accepted = await post(fresh.app, "/v1/studionet/agents", onboard);
+    if (accepted.status !== 202) {
+      problems.push(
+        `onboarding a key the registry does not know returned ${accepted.status}; registration would be impossible`,
+      );
+    }
+
+    const mismatched = await signed(ACCOUNTS.stranger, {
+      network: "studionet",
+      path: "/v1/:network/agents",
+      agentId: AGENTS.creator,
+      body: { agent_id: AGENTS.creator, profile: JSON.stringify({ schema_version: 1, operator: ACCOUNTS.creator.address.toLowerCase() }) },
+    });
+    if ((await post(fresh.app, "/v1/studionet/agents", mismatched)).status === 202) {
+      problems.push("a registration whose profile names another address was accepted");
+    }
+  } finally {
+    await fresh.stop();
+  }
+
+  // 11. Exactly one bootstrap endpoint exists, and it is the registration call.
+  const bootstraps = WRITE_ENDPOINTS.filter((endpoint) => endpoint.bootstrap);
+  if (bootstraps.length !== 1) {
+    problems.push(`${bootstraps.length} bootstrap endpoint(s); exactly one -- POST /agents -- may skip the registry lookup`);
+  } else if (bootstraps[0].path !== "/agents") {
+    problems.push(`the bootstrap endpoint is ${bootstraps[0].path}, expected /agents`);
+  }
+
   if (problems.length === 0) {
     console.log(
-      `API-AUTHZ OK ${checked} write endpoint(s), each refusing an unsigned, impersonating, forged, cross-network, cross-path and replayed request while accepting the agent's own`,
+      `API-AUTHZ OK ${checked} write endpoint(s) refusing unsigned, impersonating, cross-network, cross-path and replayed requests while accepting the agent's own; 1 bootstrap endpoint accepts an unregistered signer because it is what creates the registry entry`,
     );
   }
 } finally {

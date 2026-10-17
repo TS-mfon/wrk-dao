@@ -38,6 +38,8 @@ export interface IndexOptions {
   readonly batch?: number;
   /** Overrides the chain's configured finality depth. Tests use it; nothing else should. */
   readonly finalityDepth?: number;
+  /** Operational observation time; excluded from reproducible chain-derived data. */
+  readonly now?: () => number;
 }
 
 export async function indexOnce(
@@ -47,15 +49,19 @@ export async function indexOnce(
 ): Promise<PassResult> {
   const depth = options.finalityDepth ?? depthFor(source.chainId);
   const batch = options.batch ?? 500;
+  if (!Number.isSafeInteger(batch) || batch < 1) throw new Error("batch must be a positive safe integer");
+  if (!Number.isSafeInteger(depth) || depth < 0) throw new Error("finality depth must be a nonnegative safe integer");
 
   const reorg = await detectAndHeal(store, source, depth);
 
   const tip = await source.tip();
+  if (!Number.isSafeInteger(tip) || tip < 0) throw new Error("source returned an invalid chain tip");
   const target = safeTarget(tip, depth);
   const checkpoint = await loadCheckpoint(store, source.chainId);
   const from = (checkpoint?.block ?? 0) + 1;
 
   if (target < from) {
+    await observe();
     return {
       chain: source.chainId,
       from,
@@ -93,8 +99,17 @@ export async function indexOnce(
     store,
     newCheckpoint(source.chainId, to, head.hash, recorded),
   );
+  await observe();
 
   return { chain: source.chainId, from, to, events: events.length, upserts, reorg, idle: false };
+
+  async function observe(): Promise<void> {
+    await store.db.collection("indexer_observations").updateOne(
+      { chain: source.chainId },
+      { $set: { observed_head: tip, observed_at_unix: options.now?.() ?? Math.floor(Date.now() / 1000) } },
+      { upsert: true },
+    );
+  }
 }
 
 /** Runs passes until the chain's finalized region is fully indexed. */
