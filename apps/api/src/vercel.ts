@@ -44,19 +44,20 @@ export async function handleVercelApi(request: Request): Promise<Response> {
   const pathname = url.pathname.replace(/^\/api(?=\/|$)/, "") || "/";
   if (pathname === "/" && request.method === "GET") {
     const config = configurationStatus();
-    const configured = config.missing.length === 0;
     const network_configuration_present = Object.values(config.networks).some((network) => network.contracts_configured && network.indexer_addresses_configured);
+    const configuration_complete = config.missing.length === 0 && network_configuration_present;
     return Response.json({
       service: "wrk-dao-api",
       api_version: "v1",
-      status: configured ? "configured" : "not_ready",
-      protocol_ready: false,
+      status: configuration_complete ? "configured" : "not_ready",
+      protocol_ready: null,
+      configuration_complete,
       network_configuration_present,
       readiness_basis: "environment_presence_only; live database, RPC, contract, and indexer checks are separate",
       required_environment: { mongodb_uri: !config.missing.includes("MONGODB_URI"), mongodb_db: !config.missing.includes("MONGODB_DB") },
       networks: config.networks,
       endpoints: ["/api/v1/meta", "/api/v1/health", "/api/v1/{network}/health", "/api/v1/{network}/{collection}"],
-    }, { status: configured ? 200 : 503, headers: { "cache-control": "no-store" } });
+    }, { status: configuration_complete ? 200 : 503, headers: { "cache-control": "no-store" } });
   }
 
   try {
